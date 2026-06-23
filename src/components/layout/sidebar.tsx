@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import type { UserRole } from "@/lib/roles";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -21,13 +22,16 @@ const NAV = [
   { href: "/purchase-orders", label: "Purchase Orders", icon: ShoppingCart },
   { href: "/inventory", label: "Inventory", icon: Boxes },
   { href: "/stock-requests", label: "Stock Requests", icon: PackageSearch },
-  { href: "/accounting", label: "Accounting", icon: Calculator },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/admin", label: "Admin", icon: Settings },
+  { href: "/accounting", label: "Accounting", icon: Calculator, roles: ["manager", "finance", "admin"] },
+  { href: "/reports", label: "Reports", icon: BarChart3, roles: ["manager", "finance", "admin"] },
+  { href: "/admin", label: "Admin", icon: Settings, roles: ["admin"] },
 ] as const;
 
-export function Sidebar() {
+export function Sidebar({ role }: { role: UserRole }) {
   const pathname = usePathname();
+  const items = NAV.filter(
+    (item) => !("roles" in item) || (item.roles as readonly UserRole[]).includes(role),
+  );
 
   return (
     <aside className="hidden w-60 shrink-0 border-r bg-sidebar md:flex md:flex-col">
@@ -35,7 +39,7 @@ export function Sidebar() {
         ByteLab Ops
       </div>
       <nav className="flex flex-1 flex-col gap-1 p-2">
-        {NAV.map(({ href, label, icon: Icon }) => {
+        {items.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link

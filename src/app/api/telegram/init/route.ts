@@ -1,12 +1,63 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+
+import { createAdminClient } from "@/lib/supabase/admin";
+import { validateInitData } from "@/features/telegram/services/init-data";
+import { mintAccessToken } from "@/features/telegram/services/session";
 
 /**
- * Telegram Mini App auth bridge. Implemented in Phase 2/5.
+ * Telegram Mini App auth bridge.
  *
- * Receives Telegram `initData`, validates its HMAC signature against the bot
- * token (rejecting stale/invalid data), maps telegram_id -> profiles, then
- * mints a Supabase session so RLS applies normally inside the Mini App.
+ * Validates Telegram `initData` (HMAC against the bot token, rejecting stale or
+ * tampered data), maps telegram_id -> profiles, and returns a Supabase-
+ * compatible access token so the Mini App can talk to Supabase under RLS.
+ *
+ * The profile must already be linked to this telegram_id (set during web
+ * onboarding / admin). Unlinked users get a clear 403.
  */
-export async function POST() {
-  return NextResponse.json({ ok: true, phase: "stub" });
+export async function POST(request: NextRequest) {
+  let initData: string;
+  try {
+    ({ initData } = await request.json());
+  } catch {
+    return NextResponse.json({ error: "invalid body" }, { status: 400 });
+  }
+
+  let validated;
+  try {
+    validated = validateInitData(initData, process.env.TELEGRAM_BOT_TOKEN ?? "");
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "invalid initData" },
+      { status: 401 },
+    );
+  }
+
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("id, full_name, role, active")
+    .eq("telegram_id", validated.user.id)
+    .maybeSingle();
+
+  if (!profile) {
+    return NextResponse.json(
+      { error: "telegram account not linked to a user" },
+      { status: 403 },
+    );
+  }
+  if (!profile.active) {
+    return NextResponse.json({ error: "account disabled" }, { status: 403 });
+  }
+
+  const { data: authUser } = await admin.auth.admin.getUserById(profile.id);
+  const { accessToken, expiresIn } = await mintAccessToken({
+    userId: profile.id,
+    email: authUser.user?.email ?? null,
+  });
+
+  return NextResponse.json({
+    accessToken,
+    expiresIn,
+    profile: { id: profile.id, full_name: profile.full_name, role: profile.role },
+  });
 }
