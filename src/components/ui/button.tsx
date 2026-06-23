@@ -1,3 +1,4 @@
+import { isValidElement, type ReactElement } from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 
@@ -44,14 +45,31 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  asChild = false,
+  children,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: ButtonPrimitive.Props &
+  VariantProps<typeof buttonVariants> & { asChild?: boolean }) {
+  const classes = cn(buttonVariants({ variant, size, className }))
+
+  // asChild: render as the single child element (e.g. a Next <Link>) by mapping
+  // to base-ui's `render` prop, so the styled button composes with the child.
+  if (asChild && isValidElement(children)) {
+    const child = children as ReactElement<Record<string, unknown>>
+    return (
+      <ButtonPrimitive
+        data-slot="button"
+        className={classes}
+        render={<child.type {...child.props} />}
+        {...props}
+      />
+    )
+  }
+
   return (
-    <ButtonPrimitive
-      data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
+    <ButtonPrimitive data-slot="button" className={classes} {...props}>
+      {children}
+    </ButtonPrimitive>
   )
 }
 
