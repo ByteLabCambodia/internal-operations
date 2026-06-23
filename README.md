@@ -77,12 +77,26 @@ The Supabase CLI scaffolding lives in `supabase/`. Migrations land starting in P
 
 ```bash
 # install the CLI once: https://supabase.com/docs/guides/cli
+
+# local stack (Docker). Ports are shifted +100 in supabase/config.toml so this
+# project can run alongside other local Supabase projects (API 54421, DB 54422).
+supabase start
+supabase db reset                       # apply all migrations + supabase/seed.sql
+npm run seed                            # create sample users (one per role)
+supabase gen types typescript --local > src/types/database.ts
+
+# linked remote project
 supabase login
 supabase link --project-ref <your-project-ref>
-supabase db push          # apply migrations to the linked project
-# regenerate DB types after schema changes:
-supabase gen types typescript --local > src/types/database.ts
+supabase db push                        # apply migrations to the linked project
 ```
+
+**Sample logins** (after `npm run seed`): `employee@ / manager@ / finance@ / admin@bytelab.dev`,
+password `Passw0rd!` (dev only).
+
+Migrations (`supabase/migrations/`): `001` enums · `002` identity/org · `003` accounting ·
+`004` inventory catalog · `005` procurement · `006` inventory transactions ·
+`007` functions & triggers (the critical invariants) · `008` RLS.
 
 ## GitHub + Vercel (manual)
 
