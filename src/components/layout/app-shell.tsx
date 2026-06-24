@@ -23,7 +23,11 @@ export function AppShell({
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
+    // One-time read of the persisted preference after mount. Done in an effect
+    // (not a lazy initializer) so SSR and first client render agree and there's
+    // no hydration mismatch on the sidebar width.
     const saved = localStorage.getItem("sidebar-open");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (saved !== null) setSidebarOpen(saved === "true");
   }, []);
 
