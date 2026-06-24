@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { SignOutButton } from "@/components/layout/sign-out-button";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import type { UserRole } from "@/lib/roles";
 
 export function Header({ name, role }: { name: string; role: UserRole }) {
@@ -12,6 +13,7 @@ export function Header({ name, role }: { name: string; role: UserRole }) {
         <Badge variant="secondary" className="capitalize">
           {role}
         </Badge>
+        <ThemeToggle />
         <SignOutButton />
       </div>
     </header>
