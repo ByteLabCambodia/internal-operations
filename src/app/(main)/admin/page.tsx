@@ -1,27 +1,33 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePermission } from "@/lib/auth";
 import type { UserRole } from "@/lib/roles";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { UserRow, type AdminUser } from "@/features/admin/components/user-row";
+import { UsersManager, type AdminUser } from "@/features/admin/components/users-manager";
 import { AddNameForm } from "@/features/admin/components/add-name-form";
 
 export default async function AdminPage() {
-  await requirePermission("users.manage");
+  const me = await requirePermission("users.manage");
   const supabase = await createClient();
+  const admin = createAdminClient();
 
-  const [{ data: users }, { data: departments }, { data: projects }] = await Promise.all([
+  const [{ data: profiles }, authList, { data: departments }, { data: projects }] = await Promise.all([
     supabase.from("profiles").select("id, full_name, role, active, telegram_id").order("full_name"),
+    admin.auth.admin.listUsers({ page: 1, perPage: 200 }),
     supabase.from("departments").select("id, name, active").order("name"),
     supabase.from("projects").select("id, name, active").order("name"),
   ]);
+
+  const emailById = new Map((authList.data?.users ?? []).map((u) => [u.id, u.email ?? null]));
+  const users: AdminUser[] = (profiles ?? []).map((p) => ({
+    id: p.id,
+    full_name: p.full_name,
+    email: emailById.get(p.id) ?? null,
+    role: p.role as UserRole,
+    active: p.active,
+    telegram_id: p.telegram_id,
+  }));
 
   return (
     <div className="space-y-6">
@@ -33,21 +39,7 @@ export default async function AdminPage() {
       <Card>
         <CardHeader><CardTitle>Users</CardTitle></CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Telegram</TableHead>
-                <TableHead className="text-right">Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(users ?? []).map((u) => (
-                <UserRow key={u.id} user={{ ...u, role: u.role as UserRole } as AdminUser} />
-              ))}
-            </TableBody>
-          </Table>
+          <UsersManager users={users} currentUserId={me.id} />
         </CardContent>
       </Card>
 
