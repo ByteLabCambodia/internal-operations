@@ -7,8 +7,9 @@ import { NextResponse, type NextRequest } from "next/server";
  * pages/actions — never rely on the proxy alone.
  */
 
-// Paths reachable without a session.
-const PUBLIC_PREFIXES = ["/login", "/auth", "/api/telegram", "/api/cron"];
+// Paths reachable without a Supabase cookie session. The Mini App authenticates
+// via Telegram initData instead of cookies.
+const PUBLIC_PREFIXES = ["/login", "/auth", "/api/telegram", "/api/cron", "/miniapp"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
