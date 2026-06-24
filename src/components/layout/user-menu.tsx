@@ -12,7 +12,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -54,10 +53,10 @@ export function UserMenu({ name, role }: { name: string; role: UserRole }) {
         }
       />
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel>
-          <span className="block font-medium">{name}</span>
-          <span className="block text-xs font-normal text-muted-foreground capitalize">{role}</span>
-        </DropdownMenuLabel>
+        <div className="px-2 py-1.5">
+          <span className="block text-sm font-medium">{name}</span>
+          <span className="block text-xs text-muted-foreground capitalize">{role}</span>
+        </div>
         <DropdownMenuSeparator />
 
         <DropdownMenuSub>
