@@ -1,0 +1,15 @@
+import { requirePermission } from "@/lib/auth";
+import { ItemForm } from "@/features/inventory/components/item-form";
+
+export default async function NewInventoryItemPage() {
+  await requirePermission("inventory.manage");
+  return (
+    <div className="mx-auto max-w-2xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">New Inventory Item</h1>
+        <p className="text-sm text-muted-foreground">Add an item to the catalog.</p>
+      </div>
+      <ItemForm />
+    </div>
+  );
+}

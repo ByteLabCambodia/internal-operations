@@ -945,6 +945,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      adjust_stock: {
+        Args: { p_delta: number; p_item: string; p_note?: string }
+        Returns: number
+      }
       has_role: {
         Args: { roles: Database["public"]["Enums"]["user_role"][] }
         Returns: boolean

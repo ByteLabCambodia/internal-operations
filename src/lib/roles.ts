@@ -17,6 +17,7 @@ export type Permission =
   | "claim.confirm"
   | "stock.request"
   | "stock.fulfil"
+  | "inventory.manage"
   | "accounting.view"
   | "income.add"
   | "rate.override"
@@ -31,6 +32,7 @@ const MATRIX: Record<Permission, UserRole[]> = {
   "claim.confirm": ["manager", "admin"],
   "stock.request": ["employee", "manager", "finance", "admin"],
   "stock.fulfil": ["manager", "admin"],
+  "inventory.manage": ["manager", "admin"],
   "accounting.view": ["manager", "finance", "admin"],
   "income.add": ["finance", "admin"],
   "rate.override": ["finance", "admin"],
