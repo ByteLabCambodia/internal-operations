@@ -66,7 +66,11 @@ export function IncomeForm({ incomeAccounts }: { incomeAccounts: Option[] }) {
       <div className="space-y-2">
         <Label>Income account</Label>
         <Select value={accountId} onValueChange={(v) => setAccountId(v ?? "")}>
-          <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue placeholder="Select">
+              {(v: string) => incomeAccounts.find((a) => a.id === v)?.name ?? v}
+            </SelectValue>
+          </SelectTrigger>
           <SelectContent>
             {incomeAccounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
           </SelectContent>

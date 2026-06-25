@@ -60,7 +60,11 @@ export function ClaimForm({ pos, items }: { pos: PoOption[]; items: ItemOption[]
       <div className="space-y-2">
         <Label>Purchase order</Label>
         <Select value={poId} onValueChange={(v) => { setPoId(v ?? ""); setPoItemId(""); }}>
-          <SelectTrigger><SelectValue placeholder="Select PO" /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue placeholder="Select PO">
+              {(v: string) => { const p = pos.find((p) => p.id === v); return p ? `${p.supplier ?? "PO"} · ${p.id.slice(0, 8)}` : v; }}
+            </SelectValue>
+          </SelectTrigger>
           <SelectContent>
             {pos.map((p) => (
               <SelectItem key={p.id} value={p.id}>
@@ -73,7 +77,11 @@ export function ClaimForm({ pos, items }: { pos: PoOption[]; items: ItemOption[]
       <div className="space-y-2">
         <Label>PO item</Label>
         <Select value={poItemId} onValueChange={(v) => setPoItemId(v ?? "")} disabled={!selectedPo}>
-          <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue placeholder="Select item">
+              {(v: string) => { const it = selectedPo?.items.find((it) => it.id === v); return it ? `${it.name} (remaining ${it.remaining})` : v; }}
+            </SelectValue>
+          </SelectTrigger>
           <SelectContent>
             {selectedPo?.items.map((it) => (
               <SelectItem key={it.id} value={it.id}>
@@ -86,7 +94,11 @@ export function ClaimForm({ pos, items }: { pos: PoOption[]; items: ItemOption[]
       <div className="space-y-2">
         <Label>Receive into (catalog item)</Label>
         <Select value={invId} onValueChange={(v) => setInvId(v ?? "")}>
-          <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue placeholder="Select item">
+              {(v: string) => { const it = items.find((it) => it.id === v); return it ? `${it.sku} · ${it.name}` : v; }}
+            </SelectValue>
+          </SelectTrigger>
           <SelectContent>
             {items.map((it) => (
               <SelectItem key={it.id} value={it.id}>{it.sku} · {it.name}</SelectItem>

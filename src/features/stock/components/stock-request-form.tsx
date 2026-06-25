@@ -46,7 +46,11 @@ export function StockRequestForm({ items }: { items: { id: string; name: string;
       <div className="space-y-2">
         <Label>Item</Label>
         <Select value={itemId} onValueChange={(v) => setItemId(v ?? "")}>
-          <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue placeholder="Select item">
+              {(v: string) => { const it = items.find((it) => it.id === v); return it ? `${it.sku} · ${it.name}` : v; }}
+            </SelectValue>
+          </SelectTrigger>
           <SelectContent>
             {items.map((it) => (
               <SelectItem key={it.id} value={it.id}>{it.sku} · {it.name}</SelectItem>

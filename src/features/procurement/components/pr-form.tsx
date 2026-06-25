@@ -103,7 +103,11 @@ export function PrForm({
           <div className="space-y-2">
             <Label>Department</Label>
             <Select value={departmentId} onValueChange={(v) => setDepartmentId(v ?? "")}>
-              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="None">
+                  {(v: string) => departments.find((d) => d.id === v)?.name ?? v}
+                </SelectValue>
+              </SelectTrigger>
               <SelectContent>
                 {departments.map((d) => (
                   <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
@@ -114,7 +118,11 @@ export function PrForm({
           <div className="space-y-2">
             <Label>Project</Label>
             <Select value={projectId} onValueChange={(v) => setProjectId(v ?? "")}>
-              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="None">
+                  {(v: string) => projects.find((p) => p.id === v)?.name ?? v}
+                </SelectValue>
+              </SelectTrigger>
               <SelectContent>
                 {projects.map((p) => (
                   <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
