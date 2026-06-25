@@ -23,11 +23,12 @@ export async function createUser(raw: unknown): Promise<Result> {
   await requirePermission("users.manage");
   const parsed = createUserSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
-  const { full_name, email, role } = parsed.data;
+  const { full_name, email, role, password } = parsed.data;
 
   const admin = createAdminClient();
   const { data, error } = await admin.auth.admin.createUser({
     email,
+    password,
     email_confirm: true,
     user_metadata: { full_name },
   });
@@ -48,14 +49,20 @@ export async function updateUser(raw: unknown): Promise<Result> {
   await requirePermission("users.manage");
   const parsed = updateUserSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
-  const { user_id, full_name, email, role, active, telegram_id } = parsed.data;
+  const { user_id, full_name, email, role, active, telegram_id, new_password } = parsed.data;
 
   const admin = createAdminClient();
 
-  // Update email in auth.users only if it changed.
+  // Update email and/or password in auth.users if changed.
   const { data: current } = await admin.auth.admin.getUserById(user_id);
+  const authUpdate: { email?: string; email_confirm?: boolean; password?: string } = {};
   if (current.user && current.user.email !== email) {
-    const { error } = await admin.auth.admin.updateUserById(user_id, { email, email_confirm: true });
+    authUpdate.email = email;
+    authUpdate.email_confirm = true;
+  }
+  if (new_password) authUpdate.password = new_password;
+  if (Object.keys(authUpdate).length > 0) {
+    const { error } = await admin.auth.admin.updateUserById(user_id, authUpdate);
     if (error) return { ok: false, error: error.message };
   }
 

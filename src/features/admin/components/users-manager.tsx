@@ -123,6 +123,7 @@ function UserForm({ state, onDone }: { state: Exclude<DialogState, null>; onDone
   const user = editing ? state.user : undefined;
   const [fullName, setFullName] = useState(user?.full_name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>(user?.role ?? "employee");
   const [active, setActive] = useState(user?.active ?? true);
   const [telegramId, setTelegramId] = useState(user?.telegram_id ? String(user.telegram_id) : "");
@@ -138,8 +139,9 @@ function UserForm({ state, onDone }: { state: Exclude<DialogState, null>; onDone
           role,
           active,
           telegram_id: telegramId ? Number(telegramId) : null,
+          new_password: password || undefined,
         })
-      : await createUser({ full_name: fullName, email, role });
+      : await createUser({ full_name: fullName, email, role, password });
     setBusy(false);
     if (res.ok) {
       toast.success(editing ? "User updated" : "User created");
@@ -154,7 +156,7 @@ function UserForm({ state, onDone }: { state: Exclude<DialogState, null>; onDone
       <DialogHeader>
         <DialogTitle>{editing ? "Edit user" : "New user"}</DialogTitle>
         <DialogDescription>
-          {editing ? "Update this user's details." : "Create a user. They sign in via an emailed magic link."}
+          {editing ? "Update this user's details." : "Create a user and set their initial password."}
         </DialogDescription>
       </DialogHeader>
 
@@ -166,6 +168,15 @@ function UserForm({ state, onDone }: { state: Exclude<DialogState, null>; onDone
         <div className="space-y-2">
           <Label>Email</Label>
           <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@bytelab.dev" />
+        </div>
+        <div className="space-y-2">
+          <Label>{editing ? "New password" : "Password"}</Label>
+          <Input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={editing ? "Leave blank to keep current" : "Min. 8 characters"}
+          />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
@@ -199,7 +210,7 @@ function UserForm({ state, onDone }: { state: Exclude<DialogState, null>; onDone
       </div>
 
       <DialogFooter>
-        <Button onClick={submit} disabled={busy || !fullName || !email}>
+        <Button onClick={submit} disabled={busy || !fullName || !email || (!editing && !password)}>
           {busy ? "Saving…" : editing ? "Save changes" : "Create user"}
         </Button>
       </DialogFooter>
