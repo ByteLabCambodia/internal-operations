@@ -19,13 +19,32 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const webhookUrl = `${origin}/api/telegram/webhook`;
-  const bot = getBot();
+  // Reconstruct the real public origin when behind a reverse proxy (ngrok, cloudflare tunnel, Vercel).
+  // Priority: ?url= param > x-forwarded headers > request origin.
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const inferredOrigin =
+    forwardedProto && forwardedHost ? `${forwardedProto}://${forwardedHost}` : origin;
+  const baseUrl = searchParams.get("url") ?? inferredOrigin;
+  const webhookUrl = `${baseUrl}/api/telegram/webhook`;
+  let bot;
+  try {
+    bot = getBot();
+  } catch {
+    return NextResponse.json({ error: "TELEGRAM_BOT_TOKEN is not configured" }, { status: 500 });
+  }
 
-  await bot.api.setWebhook(webhookUrl, {
-    secret_token: process.env.TELEGRAM_WEBHOOK_SECRET ?? "",
-    allowed_updates: ["message", "callback_query"],
-  });
+  try {
+    await bot.api.setWebhook(webhookUrl, {
+      secret_token: process.env.TELEGRAM_WEBHOOK_SECRET ?? "",
+      allowed_updates: ["message", "callback_query"],
+    });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err), webhook_url: webhookUrl },
+      { status: 500 },
+    );
+  }
 
   const info = await bot.api.getWebhookInfo();
 
