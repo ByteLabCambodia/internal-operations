@@ -17,13 +17,20 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const { error } = await supabase.from("stock_requests").insert({
-    requester_id: user.id,
-    inventory_item_id: body.itemId,
-    qty: body.qty,
-    status: "pending",
-    note: body.note || null,
-  });
+  const items = body.items as Array<{ itemId: string; qty: number }>;
+  if (!Array.isArray(items) || items.length === 0) {
+    return NextResponse.json({ error: "items required" }, { status: 400 });
+  }
+
+  const { error } = await supabase.from("stock_requests").insert(
+    items.map((it) => ({
+      requester_id: user.id,
+      inventory_item_id: it.itemId,
+      qty: it.qty,
+      status: "pending",
+      note: body.note || null,
+    })),
+  );
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

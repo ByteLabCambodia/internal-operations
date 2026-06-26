@@ -19,6 +19,13 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
+  const items = body.items as Array<{ name: string; qty: number; price: number }>;
+  if (!Array.isArray(items) || items.length === 0) {
+    return NextResponse.json({ error: "items required" }, { status: 400 });
+  }
+
+  const total = items.reduce((sum, it) => sum + it.qty * it.price, 0);
+
   const { data: pr, error: prErr } = await supabase
     .from("purchase_requests")
     .insert({
@@ -26,7 +33,7 @@ export async function POST(request: NextRequest) {
       status: "pending",
       currency: body.currency,
       exchange_rate: body.rate,
-      total_original: body.qty * body.price,
+      total_original: total,
       note: body.note || null,
     })
     .select("id")
@@ -34,12 +41,9 @@ export async function POST(request: NextRequest) {
 
   if (prErr || !pr) return NextResponse.json({ error: prErr?.message ?? "insert failed" }, { status: 500 });
 
-  await supabase.from("purchase_request_items").insert({
-    pr_id: pr.id,
-    name: body.name,
-    qty: body.qty,
-    unit_price_original: body.price,
-  });
+  await supabase.from("purchase_request_items").insert(
+    items.map((it) => ({ pr_id: pr.id, name: it.name, qty: it.qty, unit_price_original: it.price })),
+  );
 
   await notify("pr_created", { pr_id: pr.id, requester_id: user.id }).catch(() => {});
 

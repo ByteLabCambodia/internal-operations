@@ -35,6 +35,8 @@ function appUrl(path: string) {
 
 // ── PR Form ─────────────────────────────────────────────────────────────────
 
+type PrItem = { id: number; name: string; qty: string; price: string };
+
 function PrForm({
   token,
   rates,
@@ -46,21 +48,35 @@ function PrForm({
   onBack: () => void;
   onDone: (msg: string) => void;
 }) {
-  const [name, setName] = useState("");
-  const [qty, setQty] = useState("1");
-  const [price, setPrice] = useState("");
+  const [items, setItems] = useState<PrItem[]>([{ id: 1, name: "", qty: "1", price: "" }]);
   const [currency, setCurrency] = useState<Currency>("USD");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function updateItem(id: number, field: keyof Omit<PrItem, "id">, value: string) {
+    setItems((prev) => prev.map((it) => it.id === id ? { ...it, [field]: value } : it));
+  }
+
+  function addItem() {
+    setItems((prev) => [...prev, { id: Date.now(), name: "", qty: "1", price: "" }]);
+  }
+
+  function removeItem(id: number) {
+    setItems((prev) => prev.filter((it) => it.id !== id));
+  }
+
+  const rate = rates[currency] ?? 1;
+  const total = items.reduce((sum, it) => sum + (Number(it.qty) || 0) * (Number(it.price) || 0), 0);
+  const totalUsd = currency === "USD" ? total : total / rate;
+  const canSubmit = items.length > 0 && items.every((it) => it.name && Number(it.qty) > 0 && Number(it.price) > 0);
+
   async function submit() {
-    if (!name || !qty || !price) return;
+    if (!canSubmit) return;
     setBusy(true);
     setError(null);
 
-    const rate = rates[currency];
-    if (!rate) {
+    if (!rates[currency]) {
       setError(`No exchange rate for ${currency}. Ask finance to set today's rate.`);
       setBusy(false);
       return;
@@ -69,13 +85,18 @@ function PrForm({
     const res = await fetch(appUrl("/api/miniapp/pr"), {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({ name, qty: Number(qty), price: Number(price), currency, rate, note }),
+      body: JSON.stringify({
+        items: items.map((it) => ({ name: it.name, qty: Number(it.qty), price: Number(it.price) })),
+        currency,
+        rate,
+        note,
+      }),
     });
     const body = await res.json();
     setBusy(false);
 
     if (!res.ok) { setError(body.error ?? "Failed"); return; }
-    onDone("Purchase request submitted! A manager will review it shortly.");
+    onDone(`Purchase request submitted with ${items.length} item${items.length > 1 ? "s" : ""}! A manager will review it shortly.`);
   }
 
   return (
@@ -84,21 +105,8 @@ function PrForm({
         <Button type="button" variant="ghost" size="sm" onClick={onBack} className="h-auto px-1 text-muted-foreground hover:text-foreground">← Back</Button>
         <h2 className="text-lg font-semibold">New Purchase Request</h2>
       </div>
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <Label>Item name</Label>
-          <Input placeholder="e.g. Arduino Uno R3" value={name} onChange={(e) => setName(e.target.value)} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label>Qty</Label>
-            <Input type="number" min="1" value={qty} onChange={(e) => setQty(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label>Unit price</Label>
-            <Input type="number" min="0" step="any" placeholder="0.00" value={price} onChange={(e) => setPrice(e.target.value)} />
-          </div>
-        </div>
+
+      <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>Currency</Label>
           <Select value={currency} onValueChange={(v) => setCurrency((v ?? "USD") as Currency)}>
@@ -112,18 +120,73 @@ function PrForm({
         </div>
         <div className="space-y-1">
           <Label>Note (optional)</Label>
-          <Input placeholder="Link, reason, or details" value={note} onChange={(e) => setNote(e.target.value)} />
+          <Input placeholder="Reason or link" value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        <Button className="w-full" onClick={submit} disabled={busy || !name || !qty || !price}>
-          {busy ? "Submitting…" : "Submit request"}
+      </div>
+
+      <div className="space-y-2">
+        <div className="grid grid-cols-[1fr_3rem_4.5rem_1.5rem] gap-1.5 px-0.5">
+          <span className="text-xs font-medium text-muted-foreground">Item name</span>
+          <span className="text-xs font-medium text-muted-foreground">Qty</span>
+          <span className="text-xs font-medium text-muted-foreground">Unit price</span>
+          <span />
+        </div>
+        {items.map((it) => (
+          <div key={it.id} className="grid grid-cols-[1fr_3rem_4.5rem_1.5rem] items-center gap-1.5">
+            <Input
+              placeholder="Item name"
+              value={it.name}
+              onChange={(e) => updateItem(it.id, "name", e.target.value)}
+              className="text-sm"
+            />
+            <Input
+              type="number" min="1"
+              value={it.qty}
+              onChange={(e) => updateItem(it.id, "qty", e.target.value)}
+              className="text-sm px-2"
+            />
+            <Input
+              type="number" min="0" step="any"
+              placeholder="0.00"
+              value={it.price}
+              onChange={(e) => updateItem(it.id, "price", e.target.value)}
+              className="text-sm px-2"
+            />
+            <button
+              onClick={() => removeItem(it.id)}
+              disabled={items.length === 1}
+              className="text-muted-foreground hover:text-destructive disabled:opacity-30 text-base leading-none"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <Button type="button" variant="outline" size="sm" className="w-full" onClick={addItem}>
+          + Add item
         </Button>
       </div>
+
+      {total > 0 && (
+        <div className="rounded-md bg-muted px-3 py-2 text-sm">
+          <span className="text-muted-foreground">Total: </span>
+          <span className="font-semibold">{total.toLocaleString(undefined, { maximumFractionDigits: 2 })} {currency}</span>
+          {currency !== "USD" && rate && (
+            <span className="ml-2 text-muted-foreground">≈ ${totalUsd.toFixed(2)}</span>
+          )}
+        </div>
+      )}
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <Button className="w-full" onClick={submit} disabled={busy || !canSubmit}>
+        {busy ? "Submitting…" : `Submit${items.length > 1 ? ` (${items.length} items)` : ""}`}
+      </Button>
     </div>
   );
 }
 
 // ── Stock Request Form ───────────────────────────────────────────────────────
+
+type StockItem = { id: number; itemId: string; qty: string };
 
 function StockForm({
   token,
@@ -136,29 +199,43 @@ function StockForm({
   onBack: () => void;
   onDone: (msg: string) => void;
 }) {
-  const [itemId, setItemId] = useState("");
-  const [qty, setQty] = useState("1");
+  const [rows, setRows] = useState<StockItem[]>([{ id: 1, itemId: "", qty: "1" }]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const selected = items.find((i) => i.id === itemId);
+  function updateRow(id: number, field: keyof Omit<StockItem, "id">, value: string) {
+    setRows((prev) => prev.map((r) => r.id === id ? { ...r, [field]: value } : r));
+  }
+
+  function addRow() {
+    setRows((prev) => [...prev, { id: Date.now(), itemId: "", qty: "1" }]);
+  }
+
+  function removeRow(id: number) {
+    setRows((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  const canSubmit = rows.length > 0 && rows.every((r) => r.itemId && Number(r.qty) > 0);
 
   async function submit() {
-    if (!itemId || !qty) return;
+    if (!canSubmit) return;
     setBusy(true);
     setError(null);
 
     const res = await fetch(appUrl("/api/miniapp/stock"), {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({ itemId, qty: Number(qty), note }),
+      body: JSON.stringify({
+        items: rows.map((r) => ({ itemId: r.itemId, qty: Number(r.qty) })),
+        note,
+      }),
     });
     const body = await res.json();
     setBusy(false);
 
     if (!res.ok) { setError(body.error ?? "Failed"); return; }
-    onDone("Stock request submitted! A manager will fulfil it shortly.");
+    onDone(`Stock request submitted for ${rows.length} item${rows.length > 1 ? "s" : ""}! A manager will fulfil it shortly.`);
   }
 
   return (
@@ -167,35 +244,60 @@ function StockForm({
         <Button type="button" variant="ghost" size="sm" onClick={onBack} className="h-auto px-1 text-muted-foreground hover:text-foreground">← Back</Button>
         <h2 className="text-lg font-semibold">Request Stock</h2>
       </div>
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <Label>Item</Label>
-          <Select value={itemId} onValueChange={(v) => setItemId(v ?? "")}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select item">
-                {selected ? `${selected.sku} · ${selected.name}` : undefined}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {items.map((i) => (
-                <SelectItem key={i.id} value={i.id}>{i.sku} · {i.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+
+      <div className="space-y-2">
+        <div className="grid grid-cols-[1fr_3.5rem_1.5rem] gap-1.5 px-0.5">
+          <span className="text-xs font-medium text-muted-foreground">Item</span>
+          <span className="text-xs font-medium text-muted-foreground">Qty</span>
+          <span />
         </div>
-        <div className="space-y-1">
-          <Label>Qty {selected ? `(${selected.unit})` : ""}</Label>
-          <Input type="number" min="1" value={qty} onChange={(e) => setQty(e.target.value)} />
-        </div>
-        <div className="space-y-1">
-          <Label>Note (optional)</Label>
-          <Input placeholder="What it's for" value={note} onChange={(e) => setNote(e.target.value)} />
-        </div>
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        <Button className="w-full" onClick={submit} disabled={busy || !itemId || !qty}>
-          {busy ? "Submitting…" : "Submit request"}
+        {rows.map((row) => {
+          const selected = items.find((i) => i.id === row.itemId);
+          return (
+            <div key={row.id} className="grid grid-cols-[1fr_3.5rem_1.5rem] items-center gap-1.5">
+              <Select value={row.itemId} onValueChange={(v) => updateRow(row.id, "itemId", v ?? "")}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="Select item">
+                    {selected ? `${selected.sku} · ${selected.name}` : undefined}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {items.map((i) => (
+                    <SelectItem key={i.id} value={i.id}>{i.sku} · {i.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                type="number" min="1"
+                value={row.qty}
+                onChange={(e) => updateRow(row.id, "qty", e.target.value)}
+                className="text-sm px-2"
+                title={selected ? selected.unit : undefined}
+              />
+              <button
+                onClick={() => removeRow(row.id)}
+                disabled={rows.length === 1}
+                className="text-muted-foreground hover:text-destructive disabled:opacity-30 text-base leading-none"
+              >
+                ×
+              </button>
+            </div>
+          );
+        })}
+        <Button type="button" variant="outline" size="sm" className="w-full" onClick={addRow}>
+          + Add item
         </Button>
       </div>
+
+      <div className="space-y-1">
+        <Label>Note (optional)</Label>
+        <Input placeholder="What it's for" value={note} onChange={(e) => setNote(e.target.value)} />
+      </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <Button className="w-full" onClick={submit} disabled={busy || !canSubmit}>
+        {busy ? "Submitting…" : `Submit${rows.length > 1 ? ` (${rows.length} items)` : ""}`}
+      </Button>
     </div>
   );
 }
