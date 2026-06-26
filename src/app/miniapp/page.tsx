@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type Screen = "loading" | "no-telegram" | "error" | "home" | "pr-form" | "stock-form" | "claim-form" | "submitted";
+type Screen = "loading" | "no-telegram" | "error" | "home" | "pr-form" | "stock-form" | "claim-form" | "submitted" | "history";
 type Profile = { id: string; full_name: string | null; role: string };
 type InventoryItem = { id: string; sku: string; name: string; unit: string };
 type PoOption = { id: string; label: string; items: { id: string; name: string; remaining: number }[] };
@@ -423,6 +423,587 @@ function ClaimForm({
   );
 }
 
+// ── History View ─────────────────────────────────────────────────────────────
+
+type HistoryPr = { id: string; pr_number: string; status: string; total_original: number; currency: string; created_at: string };
+type HistoryStock = { id: string; item_name: string; sku: string; qty: number; status: string; created_at: string };
+type HistoryClaim = { id: string; item_name: string; sku: string; qty_claimed: number; status: string; created_at: string };
+type PrDetail = {
+  id: string; pr_number: string; status: string; currency: string; exchange_rate: number;
+  total_original: number; note: string | null; created_at: string;
+  items: Array<{ id: string; name: string; qty: number; unit_price_original: number }>;
+};
+type StockDetail = { id: string; item_name: string; sku: string; unit: string; qty: number; status: string; note: string | null; created_at: string };
+type ClaimDetail = { id: string; item_name: string; sku: string; qty_claimed: number; status: string; po_number: string | null; supplier: string | null; created_at: string };
+
+const STATUS_COLORS: Record<string, string> = {
+  pending: "bg-yellow-100 text-yellow-800",
+  approved: "bg-green-100 text-green-800",
+  rejected: "bg-red-100 text-red-800",
+  fulfilled: "bg-blue-100 text-blue-800",
+  confirmed: "bg-green-100 text-green-800",
+  converted: "bg-purple-100 text-purple-800",
+};
+
+function StatusPill({ status }: { status: string }) {
+  const cls = STATUS_COLORS[status] ?? "bg-gray-100 text-gray-800";
+  return (
+    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium capitalize ${cls}`}>
+      {status}
+    </span>
+  );
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+// ── PR detail + edit ─────────────────────────────────────────────────────────
+
+function PrDetailPanel({ id, token, rates, onBack }: { id: string; token: string; rates: Record<string, number>; onBack: () => void }) {
+  const [pr, setPr] = useState<PrDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [editItems, setEditItems] = useState<PrItem[]>([]);
+  const [editCurrency, setEditCurrency] = useState<Currency>("USD");
+  const [editNote, setEditNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    setLoading(true);
+    fetch(appUrl(`/api/miniapp/history/pr/${id}`), { headers: { authorization: `Bearer ${token}` } })
+      .then(async (r) => {
+        if (!r.ok) throw new Error("Failed to load");
+        const data: PrDetail = await r.json();
+        setPr(data);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function startEdit() {
+    if (!pr) return;
+    setEditItems(pr.items.map((it, i) => ({ id: i, name: it.name, qty: String(it.qty), price: String(it.unit_price_original) })));
+    setEditCurrency(pr.currency as Currency);
+    setEditNote(pr.note ?? "");
+    setError(null);
+    setEditing(true);
+  }
+
+  function updateEditItem(id: number, field: keyof Omit<PrItem, "id">, value: string) {
+    setEditItems((prev) => prev.map((it) => it.id === id ? { ...it, [field]: value } : it));
+  }
+
+  async function saveEdit() {
+    if (!pr) return;
+    const rate = rates[editCurrency] ?? pr.exchange_rate;
+    setBusy(true);
+    setError(null);
+    const res = await fetch(appUrl(`/api/miniapp/history/pr/${id}`), {
+      method: "PATCH",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        items: editItems.map((it) => ({ name: it.name, qty: Number(it.qty), price: Number(it.price) })),
+        currency: editCurrency,
+        rate,
+        note: editNote,
+      }),
+    });
+    const body = await res.json();
+    setBusy(false);
+    if (!res.ok) { setError(body.error ?? "Failed"); return; }
+    setEditing(false);
+    load();
+  }
+
+  if (loading) return <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>;
+  if (error && !pr) return <p className="text-sm text-destructive py-4 text-center">{error}</p>;
+  if (!pr) return null;
+
+  if (editing) {
+    const total = editItems.reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.price) || 0), 0);
+    const canSave = editItems.length > 0 && editItems.every((it) => it.name && Number(it.qty) > 0 && Number(it.price) > 0);
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setEditing(false)} className="text-sm text-muted-foreground hover:text-foreground">← Cancel</button>
+          <h2 className="font-semibold">Edit {pr.pr_number}</h2>
+        </div>
+        <div className="space-y-1">
+          <Label>Currency</Label>
+          <Select value={editCurrency} onValueChange={(v) => setEditCurrency(v as Currency)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(["USD", "KHR", "CNY"] as Currency[]).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          {editItems.map((it) => (
+            <div key={it.id} className="rounded-md border p-2 space-y-2">
+              <div className="flex items-center gap-1">
+                <Input placeholder="Item name" value={it.name} onChange={(e) => updateEditItem(it.id, "name", e.target.value)} className="flex-1" />
+                {editItems.length > 1 && (
+                  <button onClick={() => setEditItems((p) => p.filter((x) => x.id !== it.id))} className="text-muted-foreground hover:text-destructive px-1">×</button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Input type="number" min="1" placeholder="Qty" value={it.qty} onChange={(e) => updateEditItem(it.id, "qty", e.target.value)} />
+                <Input type="number" min="0" placeholder={`Price (${editCurrency})`} value={it.price} onChange={(e) => updateEditItem(it.id, "price", e.target.value)} />
+              </div>
+            </div>
+          ))}
+          <Button variant="outline" className="w-full" onClick={() => setEditItems((p) => [...p, { id: Date.now(), name: "", qty: "1", price: "" }])}>
+            + Add item
+          </Button>
+        </div>
+        <div className="rounded-md bg-muted px-3 py-2 text-sm">
+          Total: <span className="font-semibold">{total.toLocaleString(undefined, { maximumFractionDigits: 2 })} {editCurrency}</span>
+        </div>
+        <div className="space-y-1">
+          <Label>Note (optional)</Label>
+          <Input value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder="Reason or notes" />
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <Button className="w-full" onClick={saveEdit} disabled={busy || !canSave}>
+          {busy ? "Saving…" : "Save changes"}
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="text-sm text-muted-foreground hover:text-foreground">← Back</button>
+        <h2 className="font-semibold flex-1">Purchase Request</h2>
+        <StatusPill status={pr.status} />
+      </div>
+      <div className="rounded-lg border p-3 space-y-1">
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Number</span>
+          <span className="font-mono font-semibold">{pr.pr_number}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Date</span>
+          <span>{formatDate(pr.created_at)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Total</span>
+          <span className="font-semibold">{Number(pr.total_original).toLocaleString()} {pr.currency}</span>
+        </div>
+        {pr.note && (
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Note</span>
+            <span className="text-right max-w-[60%]">{pr.note}</span>
+          </div>
+        )}
+      </div>
+      <div>
+        <p className="text-xs font-medium text-muted-foreground mb-2">Items</p>
+        <div className="space-y-1.5">
+          {pr.items.map((it) => (
+            <div key={it.id} className="flex justify-between rounded-md border px-3 py-2 text-sm">
+              <span>{it.name}</span>
+              <span className="text-muted-foreground">×{Number(it.qty)} @ {Number(it.unit_price_original)} {pr.currency}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      {pr.status === "pending" && (
+        <Button className="w-full" variant="outline" onClick={startEdit}>✏️ Edit request</Button>
+      )}
+    </div>
+  );
+}
+
+// ── Stock detail + edit ───────────────────────────────────────────────────────
+
+function StockDetailPanel({ id, token, onBack }: { id: string; token: string; onBack: () => void }) {
+  const [sr, setSr] = useState<StockDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [editQty, setEditQty] = useState("");
+  const [editNote, setEditNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    setLoading(true);
+    fetch(appUrl(`/api/miniapp/history/stock/${id}`), { headers: { authorization: `Bearer ${token}` } })
+      .then(async (r) => {
+        if (!r.ok) throw new Error("Failed to load");
+        const data: StockDetail = await r.json();
+        setSr(data);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function saveEdit() {
+    setBusy(true);
+    setError(null);
+    const res = await fetch(appUrl(`/api/miniapp/history/stock/${id}`), {
+      method: "PATCH",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ qty: Number(editQty), note: editNote }),
+    });
+    const body = await res.json();
+    setBusy(false);
+    if (!res.ok) { setError(body.error ?? "Failed"); return; }
+    setEditing(false);
+    load();
+  }
+
+  if (loading) return <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>;
+  if (error && !sr) return <p className="text-sm text-destructive py-4 text-center">{error}</p>;
+  if (!sr) return null;
+
+  if (editing) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setEditing(false)} className="text-sm text-muted-foreground hover:text-foreground">← Cancel</button>
+          <h2 className="font-semibold">Edit Stock Request</h2>
+        </div>
+        <div className="rounded-md border px-3 py-2 text-sm">
+          <p className="font-medium">{sr.item_name}</p>
+          <p className="text-muted-foreground text-xs">{sr.sku}</p>
+        </div>
+        <div className="space-y-1">
+          <Label>Quantity {sr.unit ? `(${sr.unit})` : ""}</Label>
+          <Input type="number" min="1" value={editQty} onChange={(e) => setEditQty(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label>Note (optional)</Label>
+          <Input value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder="Reason or notes" />
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <Button className="w-full" onClick={saveEdit} disabled={busy || !editQty || Number(editQty) <= 0}>
+          {busy ? "Saving…" : "Save changes"}
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="text-sm text-muted-foreground hover:text-foreground">← Back</button>
+        <h2 className="font-semibold flex-1">Stock Request</h2>
+        <StatusPill status={sr.status} />
+      </div>
+      <div className="rounded-lg border p-3 space-y-1">
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Item</span>
+          <span className="font-medium">{sr.item_name}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">SKU</span>
+          <span className="font-mono">{sr.sku}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Qty</span>
+          <span className="font-semibold">{sr.qty}{sr.unit ? ` ${sr.unit}` : ""}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Date</span>
+          <span>{formatDate(sr.created_at)}</span>
+        </div>
+        {sr.note && (
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Note</span>
+            <span className="text-right max-w-[60%]">{sr.note}</span>
+          </div>
+        )}
+      </div>
+      {sr.status === "pending" && (
+        <Button className="w-full" variant="outline" onClick={() => { setEditQty(String(sr.qty)); setEditNote(sr.note ?? ""); setError(null); setEditing(true); }}>
+          ✏️ Edit request
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// ── Claim detail + edit ───────────────────────────────────────────────────────
+
+function ClaimDetailPanel({ id, token, onBack }: { id: string; token: string; onBack: () => void }) {
+  const [cl, setCl] = useState<ClaimDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [editQty, setEditQty] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    setLoading(true);
+    fetch(appUrl(`/api/miniapp/history/claim/${id}`), { headers: { authorization: `Bearer ${token}` } })
+      .then(async (r) => {
+        if (!r.ok) throw new Error("Failed to load");
+        const data: ClaimDetail = await r.json();
+        setCl(data);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function saveEdit() {
+    setBusy(true);
+    setError(null);
+    const res = await fetch(appUrl(`/api/miniapp/history/claim/${id}`), {
+      method: "PATCH",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ qty_claimed: Number(editQty) }),
+    });
+    const body = await res.json();
+    setBusy(false);
+    if (!res.ok) { setError(body.error ?? "Failed"); return; }
+    setEditing(false);
+    load();
+  }
+
+  if (loading) return <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>;
+  if (error && !cl) return <p className="text-sm text-destructive py-4 text-center">{error}</p>;
+  if (!cl) return null;
+
+  if (editing) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setEditing(false)} className="text-sm text-muted-foreground hover:text-foreground">← Cancel</button>
+          <h2 className="font-semibold">Edit Claim</h2>
+        </div>
+        <div className="rounded-md border px-3 py-2 text-sm">
+          <p className="font-medium">{cl.item_name}</p>
+          <p className="text-muted-foreground text-xs">{cl.sku}</p>
+        </div>
+        <div className="space-y-1">
+          <Label>Quantity claimed</Label>
+          <Input type="number" min="1" value={editQty} onChange={(e) => setEditQty(e.target.value)} />
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <Button className="w-full" onClick={saveEdit} disabled={busy || !editQty || Number(editQty) <= 0}>
+          {busy ? "Saving…" : "Save changes"}
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="text-sm text-muted-foreground hover:text-foreground">← Back</button>
+        <h2 className="font-semibold flex-1">Inventory Claim</h2>
+        <StatusPill status={cl.status} />
+      </div>
+      <div className="rounded-lg border p-3 space-y-1">
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Item</span>
+          <span className="font-medium">{cl.item_name}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">SKU</span>
+          <span className="font-mono">{cl.sku}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Qty claimed</span>
+          <span className="font-semibold">{cl.qty_claimed}</span>
+        </div>
+        {cl.po_number && (
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">PO</span>
+            <span className="font-mono">{cl.po_number}</span>
+          </div>
+        )}
+        {cl.supplier && (
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Supplier</span>
+            <span>{cl.supplier}</span>
+          </div>
+        )}
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Date</span>
+          <span>{formatDate(cl.created_at)}</span>
+        </div>
+      </div>
+      {cl.status === "pending" && (
+        <Button className="w-full" variant="outline" onClick={() => { setEditQty(String(cl.qty_claimed)); setError(null); setEditing(true); }}>
+          ✏️ Edit claim
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// ── History list + sub-navigation ────────────────────────────────────────────
+
+type HistorySubScreen =
+  | { view: "list" }
+  | { view: "pr-detail"; id: string }
+  | { view: "stock-detail"; id: string }
+  | { view: "claim-detail"; id: string };
+
+function HistoryView({
+  token,
+  rates,
+  onBack,
+}: {
+  token: string;
+  rates: Record<string, number>;
+  onBack: () => void;
+}) {
+  const [sub, setSub] = useState<HistorySubScreen>({ view: "list" });
+  const [tab, setTab] = useState<"prs" | "stock" | "claims">("prs");
+  const [prs, setPrs] = useState<HistoryPr[]>([]);
+  const [stocks, setStocks] = useState<HistoryStock[]>([]);
+  const [claims, setClaims] = useState<HistoryClaim[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(appUrl("/api/miniapp/history"), {
+      headers: { authorization: `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Failed to load history");
+        const data = await res.json();
+        setPrs(data.prs ?? []);
+        setStocks(data.stockRequests ?? []);
+        setClaims(data.claims ?? []);
+      })
+      .catch((e) => setListError(e.message))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  if (sub.view === "pr-detail") {
+    return <PrDetailPanel id={sub.id} token={token} rates={rates} onBack={() => setSub({ view: "list" })} />;
+  }
+  if (sub.view === "stock-detail") {
+    return <StockDetailPanel id={sub.id} token={token} onBack={() => setSub({ view: "list" })} />;
+  }
+  if (sub.view === "claim-detail") {
+    return <ClaimDetailPanel id={sub.id} token={token} onBack={() => setSub({ view: "list" })} />;
+  }
+
+  const tabs: { key: typeof tab; label: string; count: number }[] = [
+    { key: "prs", label: "PRs", count: prs.length },
+    { key: "stock", label: "Stock", count: stocks.length },
+    { key: "claims", label: "Claims", count: claims.length },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <button onClick={onBack} className="text-sm text-muted-foreground hover:text-foreground">
+          ← Back
+        </button>
+        <h2 className="font-semibold">My History</h2>
+      </div>
+
+      <div className="flex rounded-lg border p-1 gap-1">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
+              tab === t.key
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t.label}
+            {t.count > 0 && <span className="ml-1 text-xs opacity-70">({t.count})</span>}
+          </button>
+        ))}
+      </div>
+
+      {loading && <p className="text-sm text-muted-foreground text-center py-8">Loading…</p>}
+      {listError && <p className="text-sm text-destructive text-center py-4">{listError}</p>}
+
+      {!loading && !listError && (
+        <div className="space-y-2">
+          {tab === "prs" && (
+            prs.length === 0
+              ? <p className="text-sm text-muted-foreground text-center py-8">No purchase requests yet.</p>
+              : prs.map((pr) => (
+                  <button
+                    key={pr.id}
+                    onClick={() => setSub({ view: "pr-detail", id: pr.id })}
+                    className="w-full text-left rounded-lg border p-3 space-y-1.5 hover:bg-accent transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-sm font-semibold">{pr.pr_number}</span>
+                      <StatusPill status={pr.status} />
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{Number(pr.total_original).toLocaleString()} {pr.currency}</span>
+                      <span>{formatDate(pr.created_at)}</span>
+                    </div>
+                  </button>
+                ))
+          )}
+
+          {tab === "stock" && (
+            stocks.length === 0
+              ? <p className="text-sm text-muted-foreground text-center py-8">No stock requests yet.</p>
+              : stocks.map((sr) => (
+                  <button
+                    key={sr.id}
+                    onClick={() => setSub({ view: "stock-detail", id: sr.id })}
+                    className="w-full text-left rounded-lg border p-3 space-y-1.5 hover:bg-accent transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">{sr.item_name}</p>
+                        <p className="text-xs text-muted-foreground">{sr.sku}</p>
+                      </div>
+                      <StatusPill status={sr.status} />
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Qty: {sr.qty}</span>
+                      <span>{formatDate(sr.created_at)}</span>
+                    </div>
+                  </button>
+                ))
+          )}
+
+          {tab === "claims" && (
+            claims.length === 0
+              ? <p className="text-sm text-muted-foreground text-center py-8">No claims yet.</p>
+              : claims.map((cl) => (
+                  <button
+                    key={cl.id}
+                    onClick={() => setSub({ view: "claim-detail", id: cl.id })}
+                    className="w-full text-left rounded-lg border p-3 space-y-1.5 hover:bg-accent transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">{cl.item_name}</p>
+                        <p className="text-xs text-muted-foreground">{cl.sku}</p>
+                      </div>
+                      <StatusPill status={cl.status} />
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Qty: {cl.qty_claimed}</span>
+                      <span>{formatDate(cl.created_at)}</span>
+                    </div>
+                  </button>
+                ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Shell ───────────────────────────────────────────────────────────────
 
 export default function MiniAppPage() {
@@ -526,6 +1107,12 @@ export default function MiniAppPage() {
               📥 Submit Claim
             </Button>
           </div>
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-muted-foreground">My activity</p>
+            <Button className="w-full" variant="outline" onClick={() => setScreen("history")}>
+              📋 My History
+            </Button>
+          </div>
         </div>
       )}
 
@@ -539,6 +1126,10 @@ export default function MiniAppPage() {
 
       {screen === "claim-form" && token && (
         <ClaimForm token={token} pos={pos} items={items} onBack={() => setScreen("home")} onDone={handleDone} />
+      )}
+
+      {screen === "history" && token && (
+        <HistoryView token={token} rates={rates} onBack={() => setScreen("home")} />
       )}
 
       {screen === "submitted" && (
