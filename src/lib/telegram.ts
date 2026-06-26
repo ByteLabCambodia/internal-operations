@@ -105,7 +105,8 @@ export async function notify(event: NotifyEvent, payload: NotifyPayload): Promis
         const pr = await fetchPr(admin, payload.pr_id as string);
         const text = pr
           ? [
-              `🧾 <b>New Purchase Request ${pr.pr_number}</b>`,
+              `🧾 <b>New Purchase Request</b>`,
+              `🔖 <code>${pr.pr_number}</code>`,
               `👤 ${pr.requester}`,
               pr.items.length > 0
                 ? "\nItems:\n" + pr.items.map((it) =>
@@ -135,7 +136,8 @@ export async function notify(event: NotifyEvent, payload: NotifyPayload): Promis
           const icon = payload.decision === "approved" ? "✅" : "❌";
           const text = pr
             ? [
-                `${icon} Your purchase request <b>${pr.pr_number}</b> was <b>${payload.decision}</b>.`,
+                `${icon} Your purchase request was <b>${payload.decision}</b>.`,
+                `🔖 <code>${pr.pr_number}</code>`,
                 pr.items.length > 0
                   ? pr.items.map((it) => `• ${it.name} × ${Number(it.qty)}`).join("\n")
                   : "",
@@ -150,9 +152,12 @@ export async function notify(event: NotifyEvent, payload: NotifyPayload): Promis
       case "po_created": {
         const po = await fetchPo(admin, payload.po_id as string);
         const text = po
-          ? `📦 <b>New Purchase Order ${po.po_number}</b>\n` +
-            `🏭 ${po.supplier ?? "No supplier"}\n` +
-            `💰 ${Number(po.total_original)} ${po.currency} (≈ ${formatUsd(Number(po.total_usd))})`
+          ? [
+              `📦 <b>New Purchase Order</b>`,
+              `🔖 <code>${po.po_number}</code>`,
+              `🏭 ${po.supplier ?? "No supplier"}`,
+              `💰 ${Number(po.total_original)} ${po.currency} (≈ ${formatUsd(Number(po.total_usd))})`,
+            ].join("\n")
           : `📦 <b>New Purchase Order</b>`;
         if (FINANCE_GROUP.chat) {
           await send(FINANCE_GROUP.chat, text, {
@@ -165,9 +170,12 @@ export async function notify(event: NotifyEvent, payload: NotifyPayload): Promis
         const pay = await fetchPayment(admin, payload.payment_id as string);
         const managers = await usersWithRoles(admin, ["manager"]);
         const text = pay
-          ? `💵 <b>Payment recorded</b> for <b>${pay.po_number}</b>\n` +
-            `💰 ${Number(pay.amount_original)} ${pay.currency} (≈ ${formatUsd(Number(pay.amount_usd))})\n` +
-            `🏭 ${pay.supplier ?? "—"}`
+          ? [
+              `💵 <b>Payment recorded</b>`,
+              `🔖 <code>${pay.po_number}</code>`,
+              `🏭 ${pay.supplier ?? "—"}`,
+              `💰 ${Number(pay.amount_original)} ${pay.currency} (≈ ${formatUsd(Number(pay.amount_usd))})`,
+            ].join("\n")
           : `💵 Payment recorded for a purchase order.`;
         for (const m of managers) {
           if (m.telegram_id) await send(m.telegram_id, text);
