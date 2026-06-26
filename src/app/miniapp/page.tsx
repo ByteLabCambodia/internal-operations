@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type Screen = "loading" | "no-telegram" | "error" | "home" | "pr-form" | "stock-form" | "claim-form" | "submitted" | "history";
+type Screen = "loading" | "no-telegram" | "error" | "link" | "home" | "pr-form" | "stock-form" | "claim-form" | "submitted" | "history";
 type Profile = { id: string; full_name: string | null; role: string };
 type InventoryItem = { id: string; sku: string; name: string; unit: string };
 type PoOption = { id: string; label: string; items: { id: string; name: string; remaining: number }[] };
@@ -1004,6 +1004,79 @@ function HistoryView({
   );
 }
 
+// ── Link Account Form ────────────────────────────────────────────────────────
+
+function LinkForm({
+  initData,
+  onSuccess,
+}: {
+  initData: string;
+  onSuccess: (profile: Profile, token: string) => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: { preventDefault(): void }) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    const res = await fetch(appUrl("/api/telegram/link-credentials"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData, email, password }),
+    });
+    const body = await res.json();
+    setBusy(false);
+    if (!res.ok) { setError(body.error ?? "Failed"); return; }
+    onSuccess(body.profile, body.accessToken);
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Link your account</CardTitle>
+        <CardDescription>
+          Sign in with your ByteLab credentials to connect this Telegram account.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="space-y-3">
+          <div className="space-y-1">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <Button className="w-full" type="submit" disabled={busy || !email || !password}>
+            {busy ? "Signing in…" : "Sign in & link"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Main Shell ───────────────────────────────────────────────────────────────
 
 export default function MiniAppPage() {
@@ -1015,6 +1088,22 @@ export default function MiniAppPage() {
   const [pos, setPos] = useState<PoOption[]>([]);
   const [doneMsg, setDoneMsg] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [initData, setInitData] = useState<string>("");
+
+  async function finishAuth(accessToken: string, prof: Profile) {
+    setProfile(prof);
+    setToken(accessToken);
+    const dataRes = await fetch(appUrl("/api/miniapp/data"), {
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    if (dataRes.ok) {
+      const data = await dataRes.json();
+      setItems(data.items ?? []);
+      setRates(data.rates ?? { USD: 1 });
+      setPos(data.pos ?? []);
+    }
+    setScreen("home");
+  }
 
   useEffect(() => {
     const tg = window.Telegram?.WebApp;
@@ -1026,6 +1115,7 @@ export default function MiniAppPage() {
     }
     tg.ready();
     tg.expand();
+    setInitData(tg.initData);
 
     fetch(appUrl("/api/telegram/init"), {
       method: "POST",
@@ -1034,28 +1124,18 @@ export default function MiniAppPage() {
     })
       .then(async (res) => {
         const body = await res.json();
-        if (!res.ok) throw new Error(body.error ?? "auth failed");
-        setProfile(body.profile);
-        setToken(body.accessToken);
-
-        // Pre-fetch inventory items + rates for the forms.
-        const dataRes = await fetch(appUrl("/api/miniapp/data"), {
-          headers: { authorization: `Bearer ${body.accessToken}` },
-        });
-        if (dataRes.ok) {
-          const data = await dataRes.json();
-          setItems(data.items ?? []);
-          setRates(data.rates ?? { USD: 1 });
-          setPos(data.pos ?? []);
+        if (res.status === 403 && body.error === "telegram account not linked to a user") {
+          setScreen("link");
+          return;
         }
-
-        setScreen("home");
+        if (!res.ok) throw new Error(body.error ?? "auth failed");
+        await finishAuth(body.accessToken, body.profile);
       })
       .catch((e) => {
         setError(e instanceof Error ? e.message : "auth failed");
         setScreen("error");
       });
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleDone(msg: string) {
     setDoneMsg(msg);
@@ -1066,6 +1146,13 @@ export default function MiniAppPage() {
     <div className="mx-auto max-w-md space-y-4 p-4">
       {screen === "loading" && (
         <p className="text-sm text-muted-foreground">Authenticating…</p>
+      )}
+
+      {screen === "link" && (
+        <LinkForm
+          initData={initData}
+          onSuccess={(prof, tok) => finishAuth(tok, prof)}
+        />
       )}
 
       {screen === "no-telegram" && (
