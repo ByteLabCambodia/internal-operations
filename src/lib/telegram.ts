@@ -264,16 +264,24 @@ function messageForStoredEvent(event: string, payload: NotifyPayload): string {
 // --- query helpers -------------------------------------------------
 
 async function fetchPr(admin: Admin, prId: string) {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("purchase_requests")
-    .select("pr_number, requester_id, currency, total_original, total_usd, profiles(full_name)")
+    .select("pr_number, requester_id, currency, total_original, total_usd")
     .eq("id", prId)
     .maybeSingle();
-  if (!data) return null;
+  if (error) { console.error("fetchPr error", error); return null; }
+  if (!data) { console.error("fetchPr: no row for", prId); return null; }
+
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("full_name")
+    .eq("id", data.requester_id)
+    .maybeSingle();
+
   return {
     pr_number: data.pr_number,
     requester_id: data.requester_id,
-    requester: (data.profiles as unknown as { full_name: string | null } | null)?.full_name ?? "Unknown",
+    requester: profile?.full_name ?? "Unknown",
     currency: data.currency,
     total_original: data.total_original,
     total_usd: data.total_usd,
@@ -290,13 +298,18 @@ async function fetchPo(admin: Admin, poId: string) {
 }
 
 async function fetchPayment(admin: Admin, paymentId: string) {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("payments")
-    .select("amount_original, amount_usd, currency, purchase_orders(po_number, supplier)")
+    .select("amount_original, amount_usd, currency, po_id")
     .eq("id", paymentId)
     .maybeSingle();
+  if (error) { console.error("fetchPayment error", error); return null; }
   if (!data) return null;
-  const po = data.purchase_orders as unknown as { po_number: string; supplier: string | null } | null;
+
+  const { data: po } = data.po_id
+    ? await admin.from("purchase_orders").select("po_number, supplier").eq("id", data.po_id).maybeSingle()
+    : { data: null };
+
   return {
     amount_original: data.amount_original,
     amount_usd: data.amount_usd,
@@ -307,37 +320,53 @@ async function fetchPayment(admin: Admin, paymentId: string) {
 }
 
 async function fetchClaim(admin: Admin, claimId: string) {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("inventory_claims")
-    .select("qty_claimed, claimed_by, inventory_items(name, sku), profiles(full_name)")
+    .select("qty_claimed, claimed_by, inventory_item_id")
     .eq("id", claimId)
     .maybeSingle();
+  if (error) { console.error("fetchClaim error", error); return null; }
   if (!data) return null;
-  const item = data.inventory_items as unknown as { name: string; sku: string } | null;
+
+  const [{ data: item }, { data: profile }] = await Promise.all([
+    data.inventory_item_id
+      ? admin.from("inventory_items").select("name, sku").eq("id", data.inventory_item_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    data.claimed_by
+      ? admin.from("profiles").select("full_name").eq("id", data.claimed_by).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
   return {
     qty_claimed: data.qty_claimed,
     claimer_id: data.claimed_by,
-    claimer: (data.profiles as unknown as { full_name: string | null } | null)?.full_name ?? "Unknown",
+    claimer: profile?.full_name ?? "Unknown",
     item_name: item?.name ?? "Unknown item",
     sku: item?.sku ?? "—",
   };
 }
 
 async function fetchStockRequest(admin: Admin, requestId: string) {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("stock_requests")
-    .select("qty, priority, department, requester_id, inventory_items(name, sku), profiles(full_name)")
+    .select("qty, priority, department, requester_id, inventory_item_id")
     .eq("id", requestId)
     .maybeSingle();
+  if (error) { console.error("fetchStockRequest error", error); return null; }
   if (!data) return null;
-  const item = data.inventory_items as unknown as { name: string; sku: string } | null;
+
+  const [{ data: item }, { data: profile }] = await Promise.all([
+    admin.from("inventory_items").select("name, sku").eq("id", data.inventory_item_id).maybeSingle(),
+    admin.from("profiles").select("full_name").eq("id", data.requester_id).maybeSingle(),
+  ]);
+
   return {
     qty: data.qty,
     priority: data.priority,
     department: data.department,
     item_name: item?.name ?? "Unknown item",
     sku: item?.sku ?? "—",
-    requester: (data.profiles as unknown as { full_name: string | null } | null)?.full_name ?? "Unknown",
+    requester: profile?.full_name ?? "Unknown",
   };
 }
 
