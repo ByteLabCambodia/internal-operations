@@ -117,25 +117,28 @@ async function handleMessage(
   message: { text: string; from?: { id: number; username?: string }; chat: { id: number } },
 ) {
   const bot = getBot();
-  if (!message.text.startsWith("/start") || !message.from) return;
+  if (!message.from) return;
 
-  // Deep-link token flow: /start link_TOKEN
-  const payload = message.text.slice("/start".length).trim();
-  if (payload.startsWith("link_")) {
-    const token = payload.slice("link_".length);
+  const text = message.text.trim();
+
+  // Short-code linking: user types e.g. "A3K-9PX" from the web app.
+  // Codes are 7 chars: 3 alphanum + dash + 3 alphanum (case-insensitive).
+  const codeMatch = text.match(/^([A-Z2-9]{3}-[A-Z2-9]{3})$/i);
+  if (codeMatch) {
+    const code = codeMatch[1].toUpperCase();
     const now = new Date().toISOString();
 
     const { data: profile } = await admin
       .from("profiles")
       .select("id, telegram_id")
-      .eq("telegram_link_token", token)
+      .eq("telegram_link_token", code)
       .gt("telegram_link_expires_at", now)
       .maybeSingle();
 
     if (!profile) {
       await bot.api.sendMessage(
         message.chat.id,
-        "❌ This link is invalid or has expired. Generate a new one from the web app.",
+        "❌ Code not found or expired. Generate a new one from the web app.",
       );
       return;
     }
@@ -157,6 +160,8 @@ async function handleMessage(
     return;
   }
 
+  if (!text.startsWith("/start")) return;
+
   // Legacy auto-link by matching telegram_username.
   if (message.from.username) {
     const { data: matched } = await admin
@@ -174,7 +179,7 @@ async function handleMessage(
 
   await bot.api.sendMessage(
     message.chat.id,
-    `👋 Welcome. Your Telegram ID is <code>${message.from.id}</code>. Ask an admin to link it to your account.`,
+    `👋 Welcome to ByteLab Ops Bot!\n\nTo link your account, go to the web app → click your name → <b>Link Telegram account</b> and send the code here.`,
     { parse_mode: "HTML" },
   );
 }

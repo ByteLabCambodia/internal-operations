@@ -17,19 +17,21 @@ export async function POST() {
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const botUsername = process.env.TELEGRAM_BOT_USERNAME;
-  if (!botUsername) return NextResponse.json({ error: "Bot not configured" }, { status: 503 });
 
   const supabase = await createClient();
-  const token = crypto.randomUUID().replace(/-/g, "");
+
+  // Generate a short human-typeable code: 3 + 3 uppercase alphanumeric, e.g. "A3K-9PX"
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no ambiguous I/O/0/1
+  const rand = (n: number) => Array.from(crypto.getRandomValues(new Uint8Array(n))).map((b) => chars[b % chars.length]).join("");
+  const code = `${rand(3)}-${rand(3)}`;
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
   const { error } = await supabase
     .from("profiles")
-    .update({ telegram_link_token: token, telegram_link_expires_at: expiresAt })
+    .update({ telegram_link_token: code, telegram_link_expires_at: expiresAt })
     .eq("id", user.id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const url = `https://t.me/${botUsername}?start=link_${token}`;
-  return NextResponse.json({ url });
+  return NextResponse.json({ code, botUsername: botUsername ?? null });
 }
