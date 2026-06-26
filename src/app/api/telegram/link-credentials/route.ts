@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
   const { error: updateError } = await admin
     .from("profiles")
-    .update({ telegram_id: String(validated.user.id) })
+    .update({ telegram_id: validated.user.id })
     .eq("id", profile.id);
 
   if (updateError) {
