@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { ChevronsUpDown, LogOut, Monitor, Moon, Sun } from "lucide-react";
+import { ChevronsUpDown, ExternalLink, LogOut, Monitor, Moon, Send, Sun } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -26,14 +27,28 @@ function initials(name: string) {
   return parts.map((p) => p[0]?.toUpperCase() ?? "").join("") || "U";
 }
 
-export function UserMenu({ name, role }: { name: string; role: UserRole }) {
+export function UserMenu({ name, role, telegramLinked }: { name: string; role: UserRole; telegramLinked: boolean }) {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const [linking, setLinking] = useState(false);
 
   async function signOut() {
     await createClient().auth.signOut();
     router.push("/login");
     router.refresh();
+  }
+
+  async function linkTelegram() {
+    setLinking(true);
+    try {
+      const res = await fetch("/api/telegram/link", { method: "POST" });
+      const body = await res.json();
+      if (res.ok && body.url) {
+        window.open(body.url, "_blank", "noopener");
+      }
+    } finally {
+      setLinking(false);
+    }
   }
 
   return (
@@ -57,6 +72,20 @@ export function UserMenu({ name, role }: { name: string; role: UserRole }) {
           <span className="block text-sm font-medium">{name}</span>
           <span className="block text-xs text-muted-foreground capitalize">{role}</span>
         </div>
+        <DropdownMenuSeparator />
+
+        {telegramLinked ? (
+          <DropdownMenuItem disabled className="gap-2 text-muted-foreground">
+            <Send className="size-4" />
+            Telegram linked ✓
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem onClick={linkTelegram} disabled={linking} className="gap-2">
+            <ExternalLink className="size-4" />
+            {linking ? "Opening…" : "Link Telegram account"}
+          </DropdownMenuItem>
+        )}
+
         <DropdownMenuSeparator />
 
         <DropdownMenuSub>

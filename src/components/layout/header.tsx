@@ -10,10 +10,12 @@ import type { UserRole } from "@/lib/roles";
 export function Header({
   name,
   role,
+  telegramLinked,
   onToggleSidebar,
 }: {
   name: string;
   role: UserRole;
+  telegramLinked: boolean;
   onToggleSidebar: () => void;
 }) {
   return (
@@ -31,7 +33,7 @@ export function Header({
         <PanelLeft className="size-5" />
       </Button>
       <div className="flex-1" />
-      <UserMenu name={name} role={role} />
+      <UserMenu name={name} role={role} telegramLinked={telegramLinked} />
     </header>
   );
 }

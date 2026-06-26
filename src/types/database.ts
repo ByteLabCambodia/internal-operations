@@ -586,6 +586,8 @@ export type Database = {
           id: string
           role: Database["public"]["Enums"]["user_role"]
           telegram_id: number | null
+          telegram_link_expires_at: string | null
+          telegram_link_token: string | null
           telegram_username: string | null
           updated_at: string
         }
@@ -597,6 +599,8 @@ export type Database = {
           id: string
           role?: Database["public"]["Enums"]["user_role"]
           telegram_id?: number | null
+          telegram_link_expires_at?: string | null
+          telegram_link_token?: string | null
           telegram_username?: string | null
           updated_at?: string
         }
@@ -608,6 +612,8 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["user_role"]
           telegram_id?: number | null
+          telegram_link_expires_at?: string | null
+          telegram_link_token?: string | null
           telegram_username?: string | null
           updated_at?: string
         }

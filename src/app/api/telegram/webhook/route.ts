@@ -119,8 +119,45 @@ async function handleMessage(
   const bot = getBot();
   if (!message.text.startsWith("/start") || !message.from) return;
 
-  // Auto-link by matching telegram_username if a profile expects it; otherwise
-  // tell the user their id so an admin can link them.
+  // Deep-link token flow: /start link_TOKEN
+  const payload = message.text.slice("/start".length).trim();
+  if (payload.startsWith("link_")) {
+    const token = payload.slice("link_".length);
+    const now = new Date().toISOString();
+
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("id, telegram_id")
+      .eq("telegram_link_token", token)
+      .gt("telegram_link_expires_at", now)
+      .maybeSingle();
+
+    if (!profile) {
+      await bot.api.sendMessage(
+        message.chat.id,
+        "❌ This link is invalid or has expired. Generate a new one from the web app.",
+      );
+      return;
+    }
+
+    if (profile.telegram_id && profile.telegram_id !== message.from.id) {
+      await bot.api.sendMessage(message.chat.id, "⚠️ This account is already linked to a different Telegram user.");
+      return;
+    }
+
+    await admin
+      .from("profiles")
+      .update({ telegram_id: message.from.id, telegram_link_token: null, telegram_link_expires_at: null })
+      .eq("id", profile.id);
+
+    await bot.api.sendMessage(
+      message.chat.id,
+      "✅ Your Telegram account is now linked! You'll receive notifications here.",
+    );
+    return;
+  }
+
+  // Legacy auto-link by matching telegram_username.
   if (message.from.username) {
     const { data: matched } = await admin
       .from("profiles")

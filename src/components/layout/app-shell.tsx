@@ -14,10 +14,12 @@ import type { UserRole } from "@/lib/roles";
 export function AppShell({
   role,
   name,
+  telegramLinked,
   children,
 }: {
   role: UserRole;
   name: string;
+  telegramLinked: boolean;
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -42,7 +44,7 @@ export function AppShell({
     <div className="flex min-h-screen flex-1">
       <Sidebar role={role} open={sidebarOpen} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Header name={name} role={role} onToggleSidebar={toggleSidebar} />
+        <Header name={name} role={role} telegramLinked={telegramLinked} onToggleSidebar={toggleSidebar} />
         <main className="flex-1 overflow-auto p-6">{children}</main>
       </div>
     </div>

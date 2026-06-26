@@ -8,7 +8,7 @@ export default async function MainLayout({
   const profile = await requireUser();
 
   return (
-    <AppShell role={profile.role as UserRole} name={profile.full_name ?? "User"}>
+    <AppShell role={profile.role as UserRole} name={profile.full_name ?? "User"} telegramLinked={Boolean(profile.telegram_id)}>
       {children}
     </AppShell>
   );
