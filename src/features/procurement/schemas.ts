@@ -34,7 +34,7 @@ export const poItemSchema = z.object({
 });
 
 export const createPoSchema = z.object({
-  pr_id: z.string().uuid().optional().nullable(),
+  pr_id: z.string().uuid("A purchase request is required"),
   type: z.enum(["online", "physical"]),
   supplier: z.string().optional(),
   currency: currencySchema,
@@ -44,10 +44,31 @@ export const createPoSchema = z.object({
 });
 export type CreatePoInput = z.infer<typeof createPoSchema>;
 
+export const paymentMethodSchema = z.enum([
+  "bank_transfer",
+  "cash",
+  "card",
+  "mobile",
+  "other",
+]);
+export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
+
+/** Human-readable labels for payment methods (shared by form + detail view). */
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  bank_transfer: "Bank transfer",
+  cash: "Cash",
+  card: "Card",
+  mobile: "Mobile (ABA, Wing…)",
+  other: "Other",
+};
+
 export const recordPaymentSchema = z.object({
   po_id: z.string().uuid().optional().nullable(),
   amount_original: z.coerce.number().positive(),
   currency: currencySchema,
+  method: paymentMethodSchema.optional().nullable(),
+  bank_account: z.string().optional().nullable(),
+  reference: z.string().optional().nullable(),
   paid_at: z.string().optional(),
   receipt_object_key: z.string().optional().nullable(),
 });

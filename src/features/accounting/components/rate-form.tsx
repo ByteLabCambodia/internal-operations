@@ -38,25 +38,20 @@ export function RateForm() {
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-4 sm:items-end">
-      <div className="space-y-2">
-        <Label>Date</Label>
-        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-      </div>
-      <div className="space-y-2">
-        <Label>Currency</Label>
-        <Select value={currency} onValueChange={(v) => setCurrency((v ?? "KHR") as "KHR" | "CNY")}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="KHR">KHR</SelectItem>
-            <SelectItem value="CNY">CNY</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Rate (per USD)</Label>
-        <Input type="number" min="0" step="any" value={rate} onChange={(e) => setRate(e.target.value)} />
-      </div>
+    <div className="inline-grid grid-cols-[9rem_7rem_9rem_auto] items-end gap-x-3 gap-y-1.5">
+      <Label htmlFor="rate-date">Date</Label>
+      <Label htmlFor="rate-currency">Currency</Label>
+      <Label htmlFor="rate-value">Rate (per USD)</Label>
+      <span />
+      <Input id="rate-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      <Select value={currency} onValueChange={(v) => setCurrency((v ?? "KHR") as "KHR" | "CNY")}>
+        <SelectTrigger id="rate-currency" className="w-full py-1"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="KHR">KHR</SelectItem>
+          <SelectItem value="CNY">CNY</SelectItem>
+        </SelectContent>
+      </Select>
+      <Input id="rate-value" type="number" min="0" step="any" placeholder="e.g. 4100" value={rate} onChange={(e) => setRate(e.target.value)} />
       <Button onClick={submit} disabled={busy || !rate || Number(rate) <= 0}>
         {busy ? "Saving…" : "Save rate"}
       </Button>

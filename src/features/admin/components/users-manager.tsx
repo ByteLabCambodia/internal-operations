@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { createUser, updateUser, deleteUser } from "@/features/admin/services/actions";
+import { updateUser, deleteUser } from "@/features/admin/services/actions";
 import type { UserRole } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,7 +46,7 @@ export type AdminUser = {
 
 const ROLES: UserRole[] = ["employee", "manager", "finance", "admin"];
 
-type DialogState = { mode: "create" } | { mode: "edit"; user: AdminUser } | null;
+type DialogState = { mode: "edit"; user: AdminUser } | null;
 
 export function UsersManager({ users, currentUserId }: { users: AdminUser[]; currentUserId: string }) {
   const router = useRouter();
@@ -65,12 +65,6 @@ export function UsersManager({ users, currentUserId }: { users: AdminUser[]; cur
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button onClick={() => setDialog({ mode: "create" })}>
-          <Plus className="size-4" /> New user
-        </Button>
-      </div>
-
       <Table>
         <TableHeader>
           <TableRow>
@@ -112,39 +106,35 @@ export function UsersManager({ users, currentUserId }: { users: AdminUser[]; cur
       </Table>
 
       <Dialog open={dialog !== null} onOpenChange={(o) => !o && setDialog(null)}>
-        {dialog && <UserForm state={dialog} onDone={() => { setDialog(null); router.refresh(); }} />}
+        {dialog && <UserForm user={dialog.user} onDone={() => { setDialog(null); router.refresh(); }} />}
       </Dialog>
     </div>
   );
 }
 
-function UserForm({ state, onDone }: { state: Exclude<DialogState, null>; onDone: () => void }) {
-  const editing = state.mode === "edit";
-  const user = editing ? state.user : undefined;
-  const [fullName, setFullName] = useState(user?.full_name ?? "");
-  const [email, setEmail] = useState(user?.email ?? "");
+function UserForm({ user, onDone }: { user: AdminUser; onDone: () => void }) {
+  const [fullName, setFullName] = useState(user.full_name ?? "");
+  const [email, setEmail] = useState(user.email ?? "");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<UserRole>(user?.role ?? "employee");
-  const [active, setActive] = useState(user?.active ?? true);
-  const [telegramId, setTelegramId] = useState(user?.telegram_id ? String(user.telegram_id) : "");
+  const [role, setRole] = useState<UserRole>(user.role);
+  const [active, setActive] = useState(user.active);
+  const [telegramId, setTelegramId] = useState(user.telegram_id ? String(user.telegram_id) : "");
   const [busy, setBusy] = useState(false);
 
   async function submit() {
     setBusy(true);
-    const res = editing
-      ? await updateUser({
-          user_id: user!.id,
-          full_name: fullName,
-          email,
-          role,
-          active,
-          telegram_id: telegramId ? Number(telegramId) : null,
-          new_password: password || undefined,
-        })
-      : await createUser({ full_name: fullName, email, role, password });
+    const res = await updateUser({
+      user_id: user.id,
+      full_name: fullName,
+      email,
+      role,
+      active,
+      telegram_id: telegramId ? Number(telegramId) : null,
+      new_password: password || undefined,
+    });
     setBusy(false);
     if (res.ok) {
-      toast.success(editing ? "User updated" : "User created");
+      toast.success("User updated");
       onDone();
     } else {
       toast.error(res.error);
@@ -154,10 +144,8 @@ function UserForm({ state, onDone }: { state: Exclude<DialogState, null>; onDone
   return (
     <DialogContent className="sm:max-w-md">
       <DialogHeader>
-        <DialogTitle>{editing ? "Edit user" : "New user"}</DialogTitle>
-        <DialogDescription>
-          {editing ? "Update this user's details." : "Create a user and set their initial password."}
-        </DialogDescription>
+        <DialogTitle>Edit user</DialogTitle>
+        <DialogDescription>Update this user's details.</DialogDescription>
       </DialogHeader>
 
       <div className="space-y-4">
@@ -170,12 +158,12 @@ function UserForm({ state, onDone }: { state: Exclude<DialogState, null>; onDone
           <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@bytelab.dev" />
         </div>
         <div className="space-y-2">
-          <Label>{editing ? "New password" : "Password"}</Label>
+          <Label>New password</Label>
           <Input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder={editing ? "Leave blank to keep current" : "Min. 8 characters"}
+            placeholder="Leave blank to keep current"
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -188,30 +176,26 @@ function UserForm({ state, onDone }: { state: Exclude<DialogState, null>; onDone
               </SelectContent>
             </Select>
           </div>
-          {editing && (
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={active ? "active" : "inactive"} onValueChange={(v) => setActive(v === "active")}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-        </div>
-        {editing && (
           <div className="space-y-2">
-            <Label>Telegram ID (optional)</Label>
-            <Input value={telegramId} onChange={(e) => setTelegramId(e.target.value)} placeholder="e.g. 123456789" />
+            <Label>Status</Label>
+            <Select value={active ? "active" : "inactive"} onValueChange={(v) => setActive(v === "active")}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        )}
+        </div>
+        <div className="space-y-2">
+          <Label>Telegram ID (optional)</Label>
+          <Input value={telegramId} onChange={(e) => setTelegramId(e.target.value)} placeholder="e.g. 123456789" />
+        </div>
       </div>
 
       <DialogFooter>
-        <Button onClick={submit} disabled={busy || !fullName || !email || (!editing && !password)}>
-          {busy ? "Saving…" : editing ? "Save changes" : "Create user"}
+        <Button onClick={submit} disabled={busy || !fullName || !email}>
+          {busy ? "Saving…" : "Save changes"}
         </Button>
       </DialogFooter>
     </DialogContent>

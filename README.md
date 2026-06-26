@@ -44,6 +44,7 @@ src/
     r2.ts                   Cloudflare R2 helpers
     telegram.ts             grammY bot + notify() abstraction
     roles.ts                role permission matrix (mirrors RLS intent)
+    activity.ts             logActivity() — append-only audit timeline writer
 supabase/migrations/        SQL migrations (Phase 1+)
 ```
 
@@ -81,7 +82,8 @@ The Supabase CLI scaffolding lives in `supabase/`. Migrations land starting in P
 # local stack (Docker). Ports are shifted +100 in supabase/config.toml so this
 # project can run alongside other local Supabase projects (API 54421, DB 54422).
 supabase start
-supabase db reset                       # apply all migrations + supabase/seed.sql
+supabase db reset                       # WIPES local data, re-applies all migrations + seed
+supabase migration up                   # apply only NEW migrations, keeping existing data
 npm run seed                            # create sample users (one per role)
 supabase gen types typescript --local > src/types/database.ts
 
@@ -96,7 +98,22 @@ password `Passw0rd!` (dev only).
 
 Migrations (`supabase/migrations/`): `001` enums · `002` identity/org · `003` accounting ·
 `004` inventory catalog · `005` procurement · `006` inventory transactions ·
-`007` functions & triggers (the critical invariants) · `008` RLS.
+`007` functions & triggers (the critical invariants) · `008` RLS · `009` grants ·
+`010` PR decision guard · `011` adjust stock · `012` telegram updates ·
+`013` align types · `014` categories & stock fields · `015` activity timeline (audit log).
+
+> **Applying a new migration without losing local data:** use `supabase migration up`,
+> not `supabase db reset`. `migration up` runs only un-applied migration files;
+> `db reset` drops the database and re-seeds. (Editing an *already-applied* migration
+> still requires a reset — only brand-new files are picked up by `migration up`.)
+
+### Activity timeline (audit log)
+
+The `activity_events` table (migration `015`) is an append-only log of who did what and
+when, powering the per-record timelines on purchase request, purchase order, and stock
+request detail pages. Server actions write events via `logActivity()` from `lib/activity.ts`
+(best-effort — a logging failure never rolls back the business mutation). RLS scopes reads
+to users who can see the underlying record; inserts are restricted to the acting user.
 
 ## GitHub + Vercel (manual)
 

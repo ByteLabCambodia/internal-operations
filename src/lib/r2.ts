@@ -26,6 +26,11 @@ function client(): S3Client {
     region: "auto",
     endpoint: `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`,
     credentials: { accessKeyId: ACCESS_KEY_ID, secretAccessKey: SECRET_ACCESS_KEY },
+    // AWS SDK v3 defaults to adding CRC32 request checksums. For presigned PUTs
+    // the body isn't known at signing time, so it bakes a checksum of an empty
+    // payload into the URL — R2 then rejects the upload. Disable it.
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
   });
   return _client;
 }

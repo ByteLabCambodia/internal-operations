@@ -24,3 +24,15 @@ export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 export const deleteUserSchema = z.object({ user_id: z.string().uuid() });
 
 export const nameSchema = z.object({ name: z.string().min(1, "Required") });
+
+export const renameSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1, "Required"),
+});
+
+export const toggleActiveSchema = z.object({
+  id: z.string().uuid(),
+  active: z.boolean(),
+});
+
+export const idSchema = z.object({ id: z.string().uuid() });

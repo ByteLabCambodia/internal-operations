@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can, type UserRole } from "@/lib/roles";
@@ -22,7 +24,7 @@ export default async function StockRequestsPage() {
   const [{ data: requests }, { data: items }] = await Promise.all([
     supabase
       .from("stock_requests")
-      .select("id, qty, status, note, created_at, inventory_items(name, sku, stock_qty)")
+      .select("id, qty, priority, department, status, note, created_at, inventory_items(name, sku, stock_qty)")
       .order("created_at", { ascending: false })
       .limit(50),
     supabase.from("inventory_items").select("id, name, sku").eq("active", true).order("name"),
@@ -51,6 +53,7 @@ export default async function StockRequestsPage() {
               <TableHead>Date</TableHead>
               <TableHead>Item</TableHead>
               <TableHead className="text-right">Qty</TableHead>
+              <TableHead>Priority</TableHead>
               <TableHead>Status</TableHead>
               {canFulfil && <TableHead className="text-right">Action</TableHead>}
             </TableRow>
@@ -60,7 +63,11 @@ export default async function StockRequestsPage() {
               const inv = r.inventory_items as unknown as { name: string; sku: string; stock_qty: number } | null;
               return (
                 <TableRow key={r.id}>
-                  <TableCell>{new Date(r.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell>
+                    <Link href={`/stock-requests/${r.id}`} className="hover:underline">
+                      {new Date(r.created_at).toLocaleDateString()}
+                    </Link>
+                  </TableCell>
                   <TableCell>
                     {inv ? `${inv.sku} · ${inv.name}` : "—"}
                     {inv && (
@@ -70,10 +77,13 @@ export default async function StockRequestsPage() {
                     )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{Number(r.qty)}</TableCell>
+                  <TableCell className="capitalize">{r.priority}</TableCell>
                   <TableCell><StatusBadge status={r.status} /></TableCell>
                   {canFulfil && (
                     <TableCell className="text-right">
-                      {r.status === "pending" ? <StockDecideButtons requestId={r.id} /> : null}
+                      {r.status === "pending" || r.status === "approved" ? (
+                        <StockDecideButtons requestId={r.id} status={r.status} />
+                      ) : null}
                     </TableCell>
                   )}
                 </TableRow>
@@ -81,7 +91,7 @@ export default async function StockRequestsPage() {
             })}
             {(requests ?? []).length === 0 && (
               <TableRow>
-                <TableCell colSpan={canFulfil ? 5 : 4} className="py-10 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={canFulfil ? 6 : 5} className="py-10 text-center text-sm text-muted-foreground">
                   No stock requests yet.
                 </TableCell>
               </TableRow>

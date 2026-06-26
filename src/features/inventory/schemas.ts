@@ -1,5 +1,17 @@
 import { z } from "zod";
 
+export const categorySchema = z.object({
+  name: z.string().min(1, "Required"),
+  description: z.string().optional(),
+});
+export type CategoryInput = z.infer<typeof categorySchema>;
+
+export const updateCategorySchema = categorySchema.extend({
+  id: z.string().uuid(),
+});
+
+export const deleteCategorySchema = z.object({ id: z.string().uuid() });
+
 export const inventoryItemSchema = z.object({
   sku: z.string().min(1, "Required"),
   name: z.string().min(1, "Required"),

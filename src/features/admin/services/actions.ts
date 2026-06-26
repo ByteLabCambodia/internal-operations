@@ -10,6 +10,9 @@ import {
   updateUserSchema,
   deleteUserSchema,
   nameSchema,
+  renameSchema,
+  toggleActiveSchema,
+  idSchema,
 } from "@/features/admin/schemas";
 
 type Result = { ok: true; id?: string } | { ok: false; error: string };
@@ -112,6 +115,79 @@ export async function createProject(raw: unknown): Promise<Result> {
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
   const supabase = await createClient();
   const { error } = await supabase.from("projects").insert({ name: parsed.data.name });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+export async function renameDepartment(raw: unknown): Promise<Result> {
+  await requirePermission("users.manage");
+  const parsed = renameSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const supabase = await createClient();
+  const { error } = await supabase.from("departments").update({ name: parsed.data.name }).eq("id", parsed.data.id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+export async function toggleDepartment(raw: unknown): Promise<Result> {
+  await requirePermission("users.manage");
+  const parsed = toggleActiveSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const supabase = await createClient();
+  const { error } = await supabase.from("departments").update({ active: parsed.data.active }).eq("id", parsed.data.id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+export async function deleteDepartment(raw: unknown): Promise<Result> {
+  await requirePermission("users.manage");
+  const parsed = idSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const supabase = await createClient();
+  const { error } = await supabase.from("departments").delete().eq("id", parsed.data.id);
+  if (error) {
+    // FK violation = still referenced by PRs/POs/journals — must deactivate instead
+    if (error.code === "23503") return { ok: false, error: "In use — deactivate instead of deleting" };
+    return { ok: false, error: error.message };
+  }
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+export async function renameProject(raw: unknown): Promise<Result> {
+  await requirePermission("users.manage");
+  const parsed = renameSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const supabase = await createClient();
+  const { error } = await supabase.from("projects").update({ name: parsed.data.name }).eq("id", parsed.data.id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+export async function deleteProject(raw: unknown): Promise<Result> {
+  await requirePermission("users.manage");
+  const parsed = idSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const supabase = await createClient();
+  const { error } = await supabase.from("projects").delete().eq("id", parsed.data.id);
+  if (error) {
+    if (error.code === "23503") return { ok: false, error: "In use — deactivate instead of deleting" };
+    return { ok: false, error: error.message };
+  }
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+export async function toggleProject(raw: unknown): Promise<Result> {
+  await requirePermission("users.manage");
+  const parsed = toggleActiveSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const supabase = await createClient();
+  const { error } = await supabase.from("projects").update({ active: parsed.data.active }).eq("id", parsed.data.id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/admin");
   return { ok: true };

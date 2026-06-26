@@ -76,7 +76,7 @@ export default async function ReportsPage({
       </div>
 
       <form className="flex flex-wrap items-end gap-3" method="get">
-        <input type="hidden" name="report" value={active.key} />
+        <Input type="hidden" name="report" value={active.key} />
         <div className="space-y-1">
           <Label htmlFor="from">From</Label>
           <Input id="from" name="from" type="date" defaultValue={from} />

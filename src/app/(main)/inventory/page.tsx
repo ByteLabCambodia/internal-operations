@@ -31,14 +31,11 @@ export default async function InventoryPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Inventory</h1>
           <p className="text-sm text-muted-foreground">Catalog and stock levels.</p>
         </div>
-        <div className="flex gap-2">
-          <Button asChild variant="outline"><Link href="/inventory/claims">Claims</Link></Button>
-          {canManage && (
-            <Button asChild>
-              <Link href="/inventory/new"><Plus className="size-4" /> New item</Link>
-            </Button>
-          )}
-        </div>
+        {canManage && (
+          <Button asChild>
+            <Link href="/inventory/new"><Plus className="size-4" /> New item</Link>
+          </Button>
+        )}
       </div>
 
       <div className="rounded-md border">
@@ -88,4 +85,5 @@ export default async function InventoryPage() {
       </div>
     </div>
   );
+
 }

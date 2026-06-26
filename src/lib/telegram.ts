@@ -102,7 +102,12 @@ export async function notify(event: NotifyEvent, payload: NotifyPayload): Promis
 
     switch (event) {
       case "pr_created": {
-        const text = `🧾 <b>New Purchase Request</b>\n${await summarizePr(admin, payload.pr_id as string)}`;
+        const pr = await fetchPr(admin, payload.pr_id as string);
+        const text = pr
+          ? `🧾 <b>New Purchase Request ${pr.pr_number}</b>\n` +
+            `👤 ${pr.requester}\n` +
+            `💰 ${Number(pr.total_original)} ${pr.currency} (≈ ${formatUsd(Number(pr.total_usd))})`
+          : `🧾 <b>New Purchase Request</b>`;
         const kb = new InlineKeyboard()
           .text("✅ Approve", `pr:approved:${payload.pr_id}`)
           .text("❌ Reject", `pr:rejected:${payload.pr_id}`);
@@ -115,17 +120,27 @@ export async function notify(event: NotifyEvent, payload: NotifyPayload): Promis
         break;
       }
       case "pr_decided": {
-        const requesterId = await requesterOfPr(admin, payload.pr_id as string);
+        const pr = await fetchPr(admin, payload.pr_id as string);
+        const requesterId = pr?.requester_id ?? await requesterOfPr(admin, payload.pr_id as string);
         if (requesterId) {
           const tid = await telegramIdFor(admin, requesterId);
-          const text = `📣 Your purchase request was <b>${payload.decision}</b>.`;
+          const icon = payload.decision === "approved" ? "✅" : "❌";
+          const text = pr
+            ? `${icon} Your purchase request <b>${pr.pr_number}</b> was <b>${payload.decision}</b>.\n` +
+              `💰 ${Number(pr.total_original)} ${pr.currency} (≈ ${formatUsd(Number(pr.total_usd))})`
+            : `${icon} Your purchase request was <b>${payload.decision}</b>.`;
           if (tid) await send(tid, text);
           await record(admin, requesterId, event, payload, Boolean(tid));
         }
         break;
       }
       case "po_created": {
-        const text = `📦 <b>New Purchase Order</b>\n${await summarizePo(admin, payload.po_id as string)}`;
+        const po = await fetchPo(admin, payload.po_id as string);
+        const text = po
+          ? `📦 <b>New Purchase Order ${po.po_number}</b>\n` +
+            `🏭 ${po.supplier ?? "No supplier"}\n` +
+            `💰 ${Number(po.total_original)} ${po.currency} (≈ ${formatUsd(Number(po.total_usd))})`
+          : `📦 <b>New Purchase Order</b>`;
         if (FINANCE_GROUP.chat) {
           await send(FINANCE_GROUP.chat, text, {
             threadId: FINANCE_GROUP.topic ? Number(FINANCE_GROUP.topic) : undefined,
@@ -134,8 +149,13 @@ export async function notify(event: NotifyEvent, payload: NotifyPayload): Promis
         break;
       }
       case "payment_recorded": {
+        const pay = await fetchPayment(admin, payload.payment_id as string);
         const managers = await usersWithRoles(admin, ["manager"]);
-        const text = `💵 Payment recorded for a purchase order.`;
+        const text = pay
+          ? `💵 <b>Payment recorded</b> for <b>${pay.po_number}</b>\n` +
+            `💰 ${Number(pay.amount_original)} ${pay.currency} (≈ ${formatUsd(Number(pay.amount_usd))})\n` +
+            `🏭 ${pay.supplier ?? "—"}`
+          : `💵 Payment recorded for a purchase order.`;
         for (const m of managers) {
           if (m.telegram_id) await send(m.telegram_id, text);
           await record(admin, m.id, event, payload, Boolean(m.telegram_id));
@@ -143,7 +163,13 @@ export async function notify(event: NotifyEvent, payload: NotifyPayload): Promis
         break;
       }
       case "claim_submitted": {
-        const text = `📥 <b>Inventory claim submitted</b>`;
+        const claim = await fetchClaim(admin, payload.claim_id as string);
+        const text = claim
+          ? `📥 <b>Inventory claim submitted</b>\n` +
+            `📦 ${claim.sku} · ${claim.item_name}\n` +
+            `🔢 Qty: ${Number(claim.qty_claimed)}\n` +
+            `👤 ${claim.claimer}`
+          : `📥 <b>Inventory claim submitted</b>`;
         const kb = new InlineKeyboard()
           .text("✅ Confirm", `claim:confirmed:${payload.claim_id}`)
           .text("❌ Reject", `claim:rejected:${payload.claim_id}`);
@@ -156,21 +182,32 @@ export async function notify(event: NotifyEvent, payload: NotifyPayload): Promis
         break;
       }
       case "claim_confirmed": {
-        const claimerId = await claimerOf(admin, payload.claim_id as string);
+        const claim = await fetchClaim(admin, payload.claim_id as string);
+        const claimerId = claim?.claimer_id ?? await claimerOf(admin, payload.claim_id as string);
         if (claimerId) {
           const tid = await telegramIdFor(admin, claimerId);
-          if (tid) await send(tid, `✅ Your inventory claim was confirmed and added to stock.`);
+          const text = claim
+            ? `✅ Your inventory claim was confirmed.\n📦 ${claim.sku} · ${claim.item_name} × ${Number(claim.qty_claimed)} added to stock.`
+            : `✅ Your inventory claim was confirmed and added to stock.`;
+          if (tid) await send(tid, text);
           await record(admin, claimerId, event, payload, Boolean(tid));
         }
         break;
       }
       case "stock_request_submitted": {
+        const sr = await fetchStockRequest(admin, payload.request_id as string);
         const managers = await usersWithRoles(admin, ["manager"]);
+        const text = sr
+          ? `📤 <b>New stock request</b>\n` +
+            `📦 ${sr.sku} · ${sr.item_name}\n` +
+            `🔢 Qty: ${Number(sr.qty)}  Priority: ${sr.priority}\n` +
+            `👤 ${sr.requester}${sr.department ? ` · ${sr.department}` : ""}`
+          : `📤 New stock request submitted.`;
         const kb = new InlineKeyboard()
           .text("✅ Fulfil", `stock:fulfilled:${payload.request_id}`)
           .text("❌ Reject", `stock:rejected:${payload.request_id}`);
         for (const m of managers) {
-          if (m.telegram_id) await send(m.telegram_id, `📤 New stock request submitted.`, { keyboard: kb });
+          if (m.telegram_id) await send(m.telegram_id, text, { keyboard: kb });
           await record(admin, m.id, event, payload, Boolean(m.telegram_id));
         }
         break;
@@ -224,26 +261,84 @@ function messageForStoredEvent(event: string, payload: NotifyPayload): string {
   return `🔔 ${event}`;
 }
 
-// --- summary/query helpers -------------------------------------------------
+// --- query helpers -------------------------------------------------
 
-async function summarizePr(admin: Admin, prId: string): Promise<string> {
+async function fetchPr(admin: Admin, prId: string) {
   const { data } = await admin
     .from("purchase_requests")
-    .select("currency, total_original, total_usd")
+    .select("pr_number, requester_id, currency, total_original, total_usd, profiles(full_name)")
     .eq("id", prId)
     .maybeSingle();
-  if (!data) return prId;
-  return `${Number(data.total_original)} ${data.currency} (≈ ${formatUsd(Number(data.total_usd))})`;
+  if (!data) return null;
+  return {
+    pr_number: data.pr_number,
+    requester_id: data.requester_id,
+    requester: (data.profiles as unknown as { full_name: string | null } | null)?.full_name ?? "Unknown",
+    currency: data.currency,
+    total_original: data.total_original,
+    total_usd: data.total_usd,
+  };
 }
 
-async function summarizePo(admin: Admin, poId: string): Promise<string> {
+async function fetchPo(admin: Admin, poId: string) {
   const { data } = await admin
     .from("purchase_orders")
-    .select("supplier, currency, total_original, total_usd")
+    .select("po_number, supplier, currency, total_original, total_usd")
     .eq("id", poId)
     .maybeSingle();
-  if (!data) return poId;
-  return `${data.supplier ?? "PO"} — ${Number(data.total_original)} ${data.currency} (≈ ${formatUsd(Number(data.total_usd))})`;
+  return data ?? null;
+}
+
+async function fetchPayment(admin: Admin, paymentId: string) {
+  const { data } = await admin
+    .from("payments")
+    .select("amount_original, amount_usd, currency, purchase_orders(po_number, supplier)")
+    .eq("id", paymentId)
+    .maybeSingle();
+  if (!data) return null;
+  const po = data.purchase_orders as unknown as { po_number: string; supplier: string | null } | null;
+  return {
+    amount_original: data.amount_original,
+    amount_usd: data.amount_usd,
+    currency: data.currency,
+    po_number: po?.po_number ?? "PO",
+    supplier: po?.supplier ?? null,
+  };
+}
+
+async function fetchClaim(admin: Admin, claimId: string) {
+  const { data } = await admin
+    .from("inventory_claims")
+    .select("qty_claimed, claimed_by, inventory_items(name, sku), profiles(full_name)")
+    .eq("id", claimId)
+    .maybeSingle();
+  if (!data) return null;
+  const item = data.inventory_items as unknown as { name: string; sku: string } | null;
+  return {
+    qty_claimed: data.qty_claimed,
+    claimer_id: data.claimed_by,
+    claimer: (data.profiles as unknown as { full_name: string | null } | null)?.full_name ?? "Unknown",
+    item_name: item?.name ?? "Unknown item",
+    sku: item?.sku ?? "—",
+  };
+}
+
+async function fetchStockRequest(admin: Admin, requestId: string) {
+  const { data } = await admin
+    .from("stock_requests")
+    .select("qty, priority, department, requester_id, inventory_items(name, sku), profiles(full_name)")
+    .eq("id", requestId)
+    .maybeSingle();
+  if (!data) return null;
+  const item = data.inventory_items as unknown as { name: string; sku: string } | null;
+  return {
+    qty: data.qty,
+    priority: data.priority,
+    department: data.department,
+    item_name: item?.name ?? "Unknown item",
+    sku: item?.sku ?? "—",
+    requester: (data.profiles as unknown as { full_name: string | null } | null)?.full_name ?? "Unknown",
+  };
 }
 
 async function requesterOfPr(admin: Admin, prId: string): Promise<string | null> {

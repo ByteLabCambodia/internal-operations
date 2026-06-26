@@ -18,6 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { DecideButtons } from "@/features/procurement/components/decide-buttons";
+import { ActivityTimeline } from "@/features/activity/components/activity-timeline";
 
 export default async function PurchaseRequestDetailPage({
   params,
@@ -31,7 +32,7 @@ export default async function PurchaseRequestDetailPage({
   const { data: pr } = await supabase
     .from("purchase_requests")
     .select(
-      "id, created_at, status, currency, exchange_rate, total_original, total_usd, note, decided_at, department_id, project_id",
+      "id, pr_number, created_at, status, currency, exchange_rate, total_original, total_usd, note, decided_at, department_id, project_id",
     )
     .eq("id", id)
     .maybeSingle();
@@ -59,7 +60,7 @@ export default async function PurchaseRequestDetailPage({
       </div>
 
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Purchase Request</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Purchase Request <span className="font-mono text-lg text-muted-foreground">{pr.pr_number}</span></h1>
         <p className="text-sm text-muted-foreground">
           Created {new Date(pr.created_at).toLocaleString()} · Locked rate{" "}
           {Number(pr.exchange_rate)} {currency}/USD
@@ -116,6 +117,8 @@ export default async function PurchaseRequestDetailPage({
           </div>
         </CardContent>
       </Card>
+
+      <ActivityTimeline entityType="purchase_request" entityId={pr.id} />
 
       {pr.note && (
         <Card>

@@ -38,6 +38,7 @@ supabase db push
 - `accounting` — manual income, exchange rates, reports
 - `admin` — user/role management
 - `telegram` — initData validation, session bridge
+- `activity` — `<ActivityTimeline>` server component rendering the `activity_events` audit log on detail pages
 
 **Shared lib** (`src/lib/`):
 - `supabase/{client,server,admin}.ts` — browser client, cookie-bound server client, service-role admin client
@@ -47,6 +48,7 @@ supabase db push
 - `telegram.ts` — `notify(event, payload)` abstraction; business logic never calls the Bot API directly
 - `r2.ts` — presigned PUT/GET URL helpers for Cloudflare R2
 - `rates.ts` — `getCurrentRate(supabase, currency)` — fetch the day's locked FX rate
+- `activity.ts` — `logActivity(supabase, {...})` writes one row to the `activity_events` audit log; best-effort (never rolls back the caller's mutation). Powers per-record timelines.
 
 ## Key conventions
 
@@ -57,7 +59,8 @@ supabase db push
 2. Call `requirePermission(permission)` first — throws if insufficient role
 3. Validate input with the domain's Zod schema (`.safeParse`)
 4. Perform DB operations via the cookie-bound server client
-5. Call `revalidatePath(...)` and return `{ ok: true } | { ok: false; error: string }`
+5. For state-changing actions (create/approve/reject/convert/fulfil/pay), call `logActivity(supabase, {...})` to append a timeline event
+6. Call `revalidatePath(...)` and return `{ ok: true } | { ok: false; error: string }`
 
 **Auth flow:** Supabase email OTP for web. Telegram Mini App uses initData HMAC validation (`features/telegram/services/init-data.ts`) → server mints a Supabase JWT → RLS applies normally.
 

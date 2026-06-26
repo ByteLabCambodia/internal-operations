@@ -3,6 +3,7 @@ import { requirePermission, getProfile } from "@/lib/auth";
 import { can, type UserRole } from "@/lib/roles";
 import { formatUsd } from "@/lib/money";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -119,7 +120,12 @@ export default async function AccountingPage() {
         <Card>
           <CardHeader><CardTitle>Exchange rates</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            {canRate && <RateForm />}
+            {canRate && (
+              <>
+                <RateForm />
+                <Separator />
+              </>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>

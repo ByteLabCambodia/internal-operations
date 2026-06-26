@@ -20,6 +20,8 @@ export function StockRequestForm({ items }: { items: { id: string; name: string;
   const router = useRouter();
   const [itemId, setItemId] = useState("");
   const [qty, setQty] = useState("");
+  const [priority, setPriority] = useState("medium");
+  const [department, setDepartment] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -28,12 +30,16 @@ export function StockRequestForm({ items }: { items: { id: string; name: string;
     const res = await submitStockRequest({
       inventory_item_id: itemId,
       qty: Number(qty),
+      priority,
+      department: department || undefined,
       note: note || undefined,
     });
     setBusy(false);
     if (res.ok) {
       toast.success("Stock request submitted");
       setQty("");
+      setPriority("medium");
+      setDepartment("");
       setNote("");
       router.refresh();
     } else {
@@ -61,6 +67,24 @@ export function StockRequestForm({ items }: { items: { id: string; name: string;
       <div className="space-y-2">
         <Label>Quantity</Label>
         <Input type="number" min="0" step="any" value={qty} onChange={(e) => setQty(e.target.value)} />
+      </div>
+      <div className="space-y-2">
+        <Label>Priority</Label>
+        <Select value={priority} onValueChange={(v) => setPriority(v ?? "medium")}>
+          <SelectTrigger>
+            <SelectValue placeholder="Priority" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="low">Low</SelectItem>
+            <SelectItem value="medium">Medium</SelectItem>
+            <SelectItem value="high">High</SelectItem>
+            <SelectItem value="urgent">Urgent</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Department</Label>
+        <Input value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Optional" />
       </div>
       <div className="space-y-2 sm:col-span-2">
         <Label>Note</Label>

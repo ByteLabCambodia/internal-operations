@@ -23,7 +23,7 @@ export default async function PurchaseOrdersPage() {
 
   const { data: pos } = await supabase
     .from("purchase_orders")
-    .select("id, created_at, type, supplier, status, payment_status, currency, total_original, total_usd")
+    .select("id, po_number, created_at, type, supplier, status, payment_status, currency, total_original, total_usd")
     .order("created_at", { ascending: false });
 
   return (
@@ -46,6 +46,7 @@ export default async function PurchaseOrdersPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>PO #</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Supplier</TableHead>
               <TableHead>Type</TableHead>
@@ -59,6 +60,7 @@ export default async function PurchaseOrdersPage() {
           <TableBody>
             {(pos ?? []).map((po) => (
               <TableRow key={po.id}>
+                <TableCell className="font-mono text-sm">{po.po_number}</TableCell>
                 <TableCell>{new Date(po.created_at).toLocaleDateString()}</TableCell>
                 <TableCell>{po.supplier ?? "—"}</TableCell>
                 <TableCell className="capitalize">{po.type}</TableCell>

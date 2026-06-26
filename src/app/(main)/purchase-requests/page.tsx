@@ -26,7 +26,7 @@ export default async function PurchaseRequestsPage({
 
   let query = supabase
     .from("purchase_requests")
-    .select("id, created_at, status, currency, total_original, total_usd, auto_generated")
+    .select("id, pr_number, created_at, status, currency, total_original, total_usd, auto_generated")
     .order("created_at", { ascending: false });
   if (status !== "all")
     query = query.eq("status", status as Exclude<(typeof STATUSES)[number], "all">);
@@ -67,6 +67,7 @@ export default async function PurchaseRequestsPage({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>PR #</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Currency</TableHead>
@@ -78,6 +79,7 @@ export default async function PurchaseRequestsPage({
           <TableBody>
             {(prs ?? []).map((pr) => (
               <TableRow key={pr.id}>
+                <TableCell className="font-mono text-xs">{pr.pr_number}</TableCell>
                 <TableCell>
                   {new Date(pr.created_at).toLocaleDateString()}
                   {pr.auto_generated && (
@@ -103,7 +105,7 @@ export default async function PurchaseRequestsPage({
             ))}
             {(prs ?? []).length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
                   No purchase requests yet.
                 </TableCell>
               </TableRow>

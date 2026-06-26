@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { type Currency } from "@/lib/money";
 import { recordPayment } from "@/features/procurement/services/actions";
+import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/features/procurement/schemas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +42,10 @@ export function RecordPaymentForm({
   const router = useRouter();
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState<Currency>(defaultCurrency);
+  const [method, setMethod] = useState<PaymentMethod>("bank_transfer");
+  const [bankAccount, setBankAccount] = useState("");
+  const [reference, setReference] = useState("");
+  const [paidAt, setPaidAt] = useState(() => new Date().toISOString().slice(0, 10));
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -61,11 +66,17 @@ export function RecordPaymentForm({
         po_id: poId,
         amount_original: Number(amount),
         currency,
+        method,
+        bank_account: bankAccount.trim() || null,
+        reference: reference.trim() || null,
+        paid_at: paidAt ? new Date(paidAt).toISOString() : undefined,
         receipt_object_key: receiptKey,
       });
       if (res.ok) {
         toast.success("Payment recorded");
         setAmount("");
+        setBankAccount("");
+        setReference("");
         setFile(null);
         router.refresh();
       } else {
@@ -92,6 +103,37 @@ export function RecordPaymentForm({
             <SelectItem value="CNY">CNY</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Payment method</Label>
+        <Select value={method} onValueChange={(v) => setMethod((v ?? "bank_transfer") as PaymentMethod)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => (
+              <SelectItem key={value} value={value}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Payment date</Label>
+        <Input type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
+      </div>
+      <div className="space-y-2">
+        <Label>Bank / account</Label>
+        <Input
+          placeholder="e.g. ABA · 000 123 456"
+          value={bankAccount}
+          onChange={(e) => setBankAccount(e.target.value)}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label>Reference / txn no.</Label>
+        <Input
+          placeholder="Transaction reference"
+          value={reference}
+          onChange={(e) => setReference(e.target.value)}
+        />
       </div>
       <div className="space-y-2 sm:col-span-2">
         <Label>Receipt (optional)</Label>

@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can, type UserRole } from "@/lib/roles";
 import { format as formatMoney, formatUsd, type Currency } from "@/lib/money";
+import { presignDownload } from "@/lib/r2";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +19,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { RecordPaymentForm } from "@/features/procurement/components/record-payment-form";
+import { ReceiptThumbnail } from "@/features/procurement/components/receipt-thumbnail";
+import { PAYMENT_METHOD_LABELS } from "@/features/procurement/schemas";
+import { ActivityTimeline } from "@/features/activity/components/activity-timeline";
 
 export default async function PurchaseOrderDetailPage({
   params,
@@ -30,7 +34,7 @@ export default async function PurchaseOrderDetailPage({
 
   const { data: po } = await supabase
     .from("purchase_orders")
-    .select("id, created_at, type, supplier, status, payment_status, currency, exchange_rate, total_original, total_usd")
+    .select("id, po_number, created_at, type, supplier, status, payment_status, currency, exchange_rate, total_original, total_usd")
     .eq("id", id)
     .maybeSingle();
   if (!po) notFound();
@@ -42,10 +46,21 @@ export default async function PurchaseOrderDetailPage({
       .eq("po_id", id),
     supabase
       .from("payments")
-      .select("id, amount_original, currency, amount_usd, paid_at, receipt_object_key, journal_entry_id")
+      .select("id, amount_original, currency, amount_usd, method, bank_account, reference, paid_at, receipt_object_key, journal_entry_id")
       .eq("po_id", id)
       .order("paid_at", { ascending: false }),
   ]);
+
+  // Presign a short-lived GET URL for each stored receipt so it can be viewed
+  // without making the bucket public. Generated fresh on every page load.
+  const receiptUrls = new Map<string, string>();
+  await Promise.all(
+    (payments ?? [])
+      .filter((p) => p.receipt_object_key)
+      .map(async (p) => {
+        receiptUrls.set(p.id, await presignDownload(p.receipt_object_key as string));
+      }),
+  );
 
   const currency = po.currency as Currency;
   const canPay = profile && can(profile.role as UserRole, "payment.record") && po.payment_status !== "paid";
@@ -64,7 +79,7 @@ export default async function PurchaseOrderDetailPage({
 
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
-          Purchase Order {po.supplier ? `· ${po.supplier}` : ""}
+          {po.po_number} {po.supplier ? `· ${po.supplier}` : ""}
         </h1>
         <p className="text-sm text-muted-foreground capitalize">
           {po.type} · Created {new Date(po.created_at).toLocaleString()} · Locked rate{" "}
@@ -120,6 +135,8 @@ export default async function PurchaseOrderDetailPage({
                   <TableHead>Date</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead className="text-right">USD</TableHead>
+                  <TableHead>Method</TableHead>
+                  <TableHead>Bank / Ref</TableHead>
                   <TableHead>Receipt</TableHead>
                   <TableHead>Journal</TableHead>
                 </TableRow>
@@ -132,7 +149,29 @@ export default async function PurchaseOrderDetailPage({
                       {formatMoney(Number(p.amount_original), p.currency as Currency)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{formatUsd(Number(p.amount_usd))}</TableCell>
-                    <TableCell>{p.receipt_object_key ? "Attached" : "—"}</TableCell>
+                    <TableCell>{p.method ? PAYMENT_METHOD_LABELS[p.method as keyof typeof PAYMENT_METHOD_LABELS] : "—"}</TableCell>
+                    <TableCell>
+                      {p.bank_account || p.reference ? (
+                        <div className="text-xs">
+                          {p.bank_account && <div>{p.bank_account}</div>}
+                          {p.reference && (
+                            <div className="text-muted-foreground">{p.reference}</div>
+                          )}
+                        </div>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {receiptUrls.has(p.id) ? (
+                        <ReceiptThumbnail
+                          url={receiptUrls.get(p.id) as string}
+                          objectKey={p.receipt_object_key as string}
+                        />
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
                     <TableCell>{p.journal_entry_id ? "Posted" : "—"}</TableCell>
                   </TableRow>
                 ))}
@@ -150,6 +189,8 @@ export default async function PurchaseOrderDetailPage({
           )}
         </CardContent>
       </Card>
+
+      <ActivityTimeline entityType="purchase_order" entityId={po.id} />
     </div>
   );
 }

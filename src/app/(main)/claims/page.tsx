@@ -1,10 +1,6 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can, type UserRole } from "@/lib/roles";
-import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -39,7 +35,7 @@ export default async function ClaimsPage() {
   const pos = (openPos ?? []).map((po) => ({
     id: po.id,
     supplier: po.supplier,
-    items: (po.purchase_order_items ?? [])
+    items: ((po.purchase_order_items ?? []) as Array<{ id: string; name: string; qty_ordered: number; qty_claimed: number }>)
       .map((it) => ({
         id: it.id,
         name: it.name,
@@ -50,12 +46,8 @@ export default async function ClaimsPage() {
 
   return (
     <div className="space-y-6">
-      <Button asChild variant="ghost" size="sm">
-        <Link href="/inventory"><ArrowLeft className="size-4" /> Inventory</Link>
-      </Button>
-
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Inventory Claims</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Claims</h1>
         <p className="text-sm text-muted-foreground">
           Claim received goods against a PO. Confirmation increases stock and updates PO fulfilment.
         </p>

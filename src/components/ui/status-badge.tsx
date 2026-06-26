@@ -9,6 +9,7 @@ const MAP: Record<string, Variant> = {
   approved: "default",
   rejected: "destructive",
   cancelled: "outline",
+  converted: "default",
   // po
   open: "secondary",
   partial: "secondary",

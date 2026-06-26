@@ -28,6 +28,7 @@ export function PoForm({
   departments,
   projects,
   rates,
+  approvedPrs,
   prefill,
 }: {
   departments: Option[];
@@ -44,6 +45,7 @@ export function PoForm({
 }) {
   const router = useRouter();
   const [type, setType] = useState<"online" | "physical">(prefill ? "online" : "physical");
+  const [selectedPrId, setSelectedPrId] = useState("");
   const [supplier, setSupplier] = useState("");
   const [currency, setCurrency] = useState<Currency>(prefill?.currency ?? "USD");
   const [departmentId, setDepartmentId] = useState(prefill?.department_id ?? "");
@@ -73,7 +75,7 @@ export function PoForm({
   async function submit() {
     setSubmitting(true);
     const res = await createPurchaseOrder({
-      pr_id: prefill?.pr_id ?? null,
+      pr_id: prefill?.pr_id ?? selectedPrId,
       type,
       supplier: supplier || undefined,
       currency,
@@ -108,7 +110,33 @@ export function PoForm({
                 <SelectItem value="physical">Physical (direct)</SelectItem>
               </SelectContent>
             </Select>
-            {prefill && <p className="text-xs text-muted-foreground">Linked to request {prefill.pr_id.slice(0, 8)}…</p>}
+            {prefill ? (
+              <p className="text-xs text-muted-foreground">Linked to request {prefill.pr_id.slice(0, 8)}…</p>
+            ) : (
+              <div className="mt-2 flex gap-2">
+                <Select value={selectedPrId} onValueChange={(v) => setSelectedPrId(v ?? "")}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Select approved request…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {approvedPrs.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.id.slice(0, 8)}… ({p.currency})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={!selectedPrId}
+                  onClick={() => router.push(`/purchase-orders/new?pr=${selectedPrId}`)}
+                >
+                  Load
+                </Button>
+              </div>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Supplier</Label>
@@ -195,7 +223,7 @@ export function PoForm({
             <span className="ml-2 text-sm font-normal text-muted-foreground">≈ {formatUsd(totalUsd)}</span>
           </div>
         </div>
-        <Button onClick={submit} disabled={submitting || (currency !== "USD" && rate <= 0)}>
+        <Button onClick={submit} disabled={submitting || (currency !== "USD" && rate <= 0) || (!prefill && !selectedPrId)}>
           {submitting ? "Creating…" : "Create PO"}
         </Button>
       </div>
