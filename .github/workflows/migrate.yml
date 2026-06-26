@@ -10,6 +10,7 @@ jobs:
   migrate:
     name: Push migrations to Supabase
     runs-on: ubuntu-latest
+    environment: Production
     steps:
       - uses: actions/checkout@v4
 
