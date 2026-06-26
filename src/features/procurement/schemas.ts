@@ -35,7 +35,6 @@ export const poItemSchema = z.object({
 
 export const createPoSchema = z.object({
   pr_id: z.string().uuid("A purchase request is required"),
-  type: z.enum(["online", "physical"]),
   supplier: z.string().optional(),
   currency: currencySchema,
   department_id: z.string().uuid().optional().nullable(),

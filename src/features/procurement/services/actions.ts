@@ -127,7 +127,6 @@ export async function createPurchaseOrder(raw: unknown): Promise<Result> {
     .from("purchase_orders")
     .insert({
       pr_id: input.pr_id ?? null,
-      type: input.type,
       supplier: input.supplier ?? null,
       currency: input.currency,
       exchange_rate: rate,

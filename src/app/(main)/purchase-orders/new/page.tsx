@@ -19,7 +19,7 @@ export default async function NewPurchaseOrderPage({
       supabase.from("exchange_rates").select("currency, rate_to_usd, rate_date").order("rate_date", { ascending: false }),
       supabase
         .from("purchase_requests")
-        .select("id, currency, total_original, created_at")
+        .select("id, pr_number, currency, total_original, created_at")
         .eq("status", "approved")
         .order("created_at", { ascending: false }),
     ]);
@@ -33,6 +33,7 @@ export default async function NewPurchaseOrderPage({
   // Prefill from an approved PR if requested.
   let prefill = null as null | {
     pr_id: string;
+    pr_number: string;
     currency: Currency;
     department_id: string | null;
     project_id: string | null;
@@ -41,7 +42,7 @@ export default async function NewPurchaseOrderPage({
   if (prId) {
     const { data: pr } = await supabase
       .from("purchase_requests")
-      .select("id, currency, department_id, project_id, status")
+      .select("id, pr_number, currency, department_id, project_id, status")
       .eq("id", prId)
       .maybeSingle();
     if (pr && pr.status === "approved") {
@@ -51,6 +52,7 @@ export default async function NewPurchaseOrderPage({
         .eq("pr_id", prId);
       prefill = {
         pr_id: pr.id,
+        pr_number: pr.pr_number,
         currency: pr.currency as Currency,
         department_id: pr.department_id,
         project_id: pr.project_id,
@@ -69,14 +71,21 @@ export default async function NewPurchaseOrderPage({
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">New Purchase Order</h1>
         <p className="text-sm text-muted-foreground">
-          Create from an approved request (online) or record a physical purchase directly.
+          Select an approved purchase request to create a purchase order.
         </p>
       </div>
       <PoForm
+        key={prefill?.pr_id ?? "new"}
         departments={departments ?? []}
         projects={projects ?? []}
         rates={rateMap}
-        approvedPrs={(approvedPrs ?? []).map((p) => ({ id: p.id, currency: p.currency as Currency }))}
+        approvedPrs={(approvedPrs ?? []).map((p) => ({
+          id: p.id,
+          pr_number: p.pr_number,
+          currency: p.currency as Currency,
+          total_original: Number(p.total_original),
+          created_at: p.created_at,
+        }))}
         prefill={prefill}
       />
     </div>
