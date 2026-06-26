@@ -104,9 +104,17 @@ export async function notify(event: NotifyEvent, payload: NotifyPayload): Promis
       case "pr_created": {
         const pr = await fetchPr(admin, payload.pr_id as string);
         const text = pr
-          ? `🧾 <b>New Purchase Request ${pr.pr_number}</b>\n` +
-            `👤 ${pr.requester}\n` +
-            `💰 ${Number(pr.total_original)} ${pr.currency} (≈ ${formatUsd(Number(pr.total_usd))})`
+          ? [
+              `🧾 <b>New Purchase Request ${pr.pr_number}</b>`,
+              `👤 ${pr.requester}`,
+              pr.items.length > 0
+                ? "\nItems:\n" + pr.items.map((it) =>
+                    `• ${it.name} × ${Number(it.qty)} @ ${Number(it.unit_price_original)} ${pr.currency}`
+                  ).join("\n")
+                : "",
+              `\n💰 Total: ${Number(pr.total_original)} ${pr.currency} (≈ ${formatUsd(Number(pr.total_usd))})`,
+              pr.note ? `📝 ${pr.note}` : "",
+            ].filter(Boolean).join("\n")
           : `🧾 <b>New Purchase Request</b>`;
         const kb = new InlineKeyboard()
           .text("✅ Approve", `pr:approved:${payload.pr_id}`)
@@ -126,8 +134,13 @@ export async function notify(event: NotifyEvent, payload: NotifyPayload): Promis
           const tid = await telegramIdFor(admin, requesterId);
           const icon = payload.decision === "approved" ? "✅" : "❌";
           const text = pr
-            ? `${icon} Your purchase request <b>${pr.pr_number}</b> was <b>${payload.decision}</b>.\n` +
-              `💰 ${Number(pr.total_original)} ${pr.currency} (≈ ${formatUsd(Number(pr.total_usd))})`
+            ? [
+                `${icon} Your purchase request <b>${pr.pr_number}</b> was <b>${payload.decision}</b>.`,
+                pr.items.length > 0
+                  ? pr.items.map((it) => `• ${it.name} × ${Number(it.qty)}`).join("\n")
+                  : "",
+                `💰 ${Number(pr.total_original)} ${pr.currency} (≈ ${formatUsd(Number(pr.total_usd))})`,
+              ].filter(Boolean).join("\n")
             : `${icon} Your purchase request was <b>${payload.decision}</b>.`;
           if (tid) await send(tid, text);
           await record(admin, requesterId, event, payload, Boolean(tid));
@@ -198,10 +211,13 @@ export async function notify(event: NotifyEvent, payload: NotifyPayload): Promis
         const sr = await fetchStockRequest(admin, payload.request_id as string);
         const managers = await usersWithRoles(admin, ["manager"]);
         const text = sr
-          ? `📤 <b>New stock request</b>\n` +
-            `📦 ${sr.sku} · ${sr.item_name}\n` +
-            `🔢 Qty: ${Number(sr.qty)}  Priority: ${sr.priority}\n` +
-            `👤 ${sr.requester}${sr.department ? ` · ${sr.department}` : ""}`
+          ? [
+              `📤 <b>New stock request</b>`,
+              `📦 ${sr.sku} · ${sr.item_name}`,
+              `🔢 Qty: ${Number(sr.qty)}  Priority: ${sr.priority}`,
+              `👤 ${sr.requester}${sr.department ? ` · ${sr.department}` : ""}`,
+              sr.note ? `📝 ${sr.note}` : "",
+            ].filter(Boolean).join("\n")
           : `📤 New stock request submitted.`;
         const kb = new InlineKeyboard()
           .text("✅ Fulfil", `stock:fulfilled:${payload.request_id}`)
@@ -266,17 +282,16 @@ function messageForStoredEvent(event: string, payload: NotifyPayload): string {
 async function fetchPr(admin: Admin, prId: string) {
   const { data, error } = await admin
     .from("purchase_requests")
-    .select("pr_number, requester_id, currency, total_original, total_usd")
+    .select("pr_number, requester_id, currency, total_original, total_usd, note")
     .eq("id", prId)
     .maybeSingle();
   if (error) { console.error("fetchPr error", error); return null; }
   if (!data) { console.error("fetchPr: no row for", prId); return null; }
 
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("full_name")
-    .eq("id", data.requester_id)
-    .maybeSingle();
+  const [{ data: profile }, { data: lineItems }] = await Promise.all([
+    admin.from("profiles").select("full_name").eq("id", data.requester_id).maybeSingle(),
+    admin.from("purchase_request_items").select("name, qty, unit_price_original").eq("pr_id", prId).order("id"),
+  ]);
 
   return {
     pr_number: data.pr_number,
@@ -285,6 +300,8 @@ async function fetchPr(admin: Admin, prId: string) {
     currency: data.currency,
     total_original: data.total_original,
     total_usd: data.total_usd,
+    note: data.note,
+    items: lineItems ?? [],
   };
 }
 
@@ -349,7 +366,7 @@ async function fetchClaim(admin: Admin, claimId: string) {
 async function fetchStockRequest(admin: Admin, requestId: string) {
   const { data, error } = await admin
     .from("stock_requests")
-    .select("qty, priority, department, requester_id, inventory_item_id")
+    .select("qty, priority, department, requester_id, inventory_item_id, note")
     .eq("id", requestId)
     .maybeSingle();
   if (error) { console.error("fetchStockRequest error", error); return null; }
@@ -364,6 +381,7 @@ async function fetchStockRequest(admin: Admin, requestId: string) {
     qty: data.qty,
     priority: data.priority,
     department: data.department,
+    note: (data as unknown as { note?: string | null }).note ?? null,
     item_name: item?.name ?? "Unknown item",
     sku: item?.sku ?? "—",
     requester: profile?.full_name ?? "Unknown",
