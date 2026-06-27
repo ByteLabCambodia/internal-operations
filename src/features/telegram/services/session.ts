@@ -1,35 +1,54 @@
-import { SignJWT } from "jose";
+import { createClient } from "@supabase/supabase-js";
+
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
- * Mints a Supabase-compatible access token (HS256, signed with the project JWT
- * secret) for a Mini App user that has been authenticated via Telegram
- * initData. The Mini App uses this as a Bearer token so RLS applies normally;
- * on expiry it re-runs the initData exchange (Telegram supplies fresh initData
- * on each launch), so no refresh token is needed.
+ * Mints a *real* Supabase session for a Mini App user that has been
+ * authenticated via Telegram initData.
+ *
+ * The project signs JWTs with an asymmetric (ES256) key whose private half
+ * Supabase never exposes, so we cannot hand-sign a token GoTrue will accept.
+ * Instead we ask GoTrue to issue one: generate a one-time magic-link token for
+ * the user (Admin API, service-role key) and immediately redeem it via
+ * `verifyOtp`. The returned access token is signed by GoTrue itself, so
+ * `auth.getUser()` validates it and RLS applies normally. We also return the
+ * refresh token so the client can renew without re-running the initData
+ * exchange.
+ *
+ * `generateLink` does not send any email — it only mints the token.
  */
-export async function mintAccessToken(opts: {
-  userId: string;
-  email?: string | null;
-  ttlSeconds?: number;
-}): Promise<{ accessToken: string; expiresIn: number }> {
-  const secret = process.env.SUPABASE_JWT_SECRET;
-  if (!secret) throw new Error("SUPABASE_JWT_SECRET not configured");
+export async function createUserSession(opts: {
+  email: string;
+}): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
+  if (!opts.email) {
+    throw new Error("user has no email; cannot mint a session");
+  }
 
-  const ttl = opts.ttlSeconds ?? 60 * 60 * 24; // 24h — matches initData validity window
-  const now = Math.floor(Date.now() / 1000);
+  const admin = createAdminClient();
+  const { data: link, error: linkError } = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email: opts.email,
+  });
+  if (linkError || !link.properties?.hashed_token) {
+    throw new Error(linkError?.message ?? "failed to generate session token");
+  }
 
-  const accessToken = await new SignJWT({
-    role: "authenticated",
-    email: opts.email ?? undefined,
-    app_metadata: { provider: "telegram", providers: ["telegram"] },
-    user_metadata: {},
-  })
-    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
-    .setSubject(opts.userId)
-    .setAudience("authenticated")
-    .setIssuedAt(now)
-    .setExpirationTime(now + ttl)
-    .sign(new TextEncoder().encode(secret));
+  const anon = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+  const { data: verified, error: verifyError } = await anon.auth.verifyOtp({
+    token_hash: link.properties.hashed_token,
+    type: "magiclink",
+  });
+  if (verifyError || !verified.session) {
+    throw new Error(verifyError?.message ?? "failed to redeem session token");
+  }
 
-  return { accessToken, expiresIn: ttl };
+  return {
+    accessToken: verified.session.access_token,
+    refreshToken: verified.session.refresh_token,
+    expiresIn: verified.session.expires_in ?? 3600,
+  };
 }

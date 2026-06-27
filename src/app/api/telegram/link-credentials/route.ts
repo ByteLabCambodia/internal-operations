@@ -3,7 +3,6 @@ import { createClient } from "@supabase/supabase-js";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { validateInitData } from "@/features/telegram/services/init-data";
-import { mintAccessToken } from "@/features/telegram/services/session";
 
 export async function POST(request: NextRequest) {
   let initData: string, email: string, password: string;
@@ -25,7 +24,7 @@ export async function POST(request: NextRequest) {
 
   const authClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
   );
   const { data: signInData, error: signInError } = await authClient.auth.signInWithPassword({
     email,
@@ -58,14 +57,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
-  const { accessToken, expiresIn } = await mintAccessToken({
-    userId: profile.id,
-    email: signInData.user.email ?? null,
-  });
+  // signInWithPassword already returned a real GoTrue-signed session — use it
+  // directly rather than hand-minting a token the project's asymmetric keys
+  // would reject.
+  if (!signInData.session) {
+    return NextResponse.json({ error: "no session returned" }, { status: 500 });
+  }
 
   return NextResponse.json({
-    accessToken,
-    expiresIn,
+    accessToken: signInData.session.access_token,
+    refreshToken: signInData.session.refresh_token,
+    expiresIn: signInData.session.expires_in,
     profile: { id: profile.id, full_name: profile.full_name, role: profile.role },
   });
 }

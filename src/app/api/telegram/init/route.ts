@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { validateInitData } from "@/features/telegram/services/init-data";
-import { mintAccessToken } from "@/features/telegram/services/session";
+import { createUserSession } from "@/features/telegram/services/session";
 
 /**
  * Telegram Mini App auth bridge.
@@ -50,13 +50,19 @@ export async function POST(request: NextRequest) {
   }
 
   const { data: authUser } = await admin.auth.admin.getUserById(profile.id);
-  const { accessToken, expiresIn } = await mintAccessToken({
-    userId: profile.id,
-    email: authUser.user?.email ?? null,
-  });
+  const email = authUser.user?.email;
+  if (!email) {
+    return NextResponse.json(
+      { error: "user account has no email; cannot start session" },
+      { status: 409 },
+    );
+  }
+
+  const { accessToken, refreshToken, expiresIn } = await createUserSession({ email });
 
   return NextResponse.json({
     accessToken,
+    refreshToken,
     expiresIn,
     profile: { id: profile.id, full_name: profile.full_name, role: profile.role },
   });

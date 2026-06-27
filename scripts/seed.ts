@@ -5,7 +5,7 @@
  * Usage:
  *   npm run seed
  *
- * Requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local.
+ * Requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY in .env.local.
  * The service role bypasses RLS. Dev passwords are intentionally simple — do
  * NOT run this against production.
  */
@@ -14,10 +14,10 @@ import { createClient } from "@supabase/supabase-js";
 import type { UserRole } from "../src/lib/roles";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const serviceKey = process.env.SUPABASE_SECRET_KEY;
 
 if (!url || !serviceKey) {
-  console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+  console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY");
   process.exit(1);
 }
 

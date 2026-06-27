@@ -37,7 +37,7 @@ function loadEnv(file) {
 const env = loadEnv(resolve(root, ".env.local"));
 const BOT_TOKEN = env.TELEGRAM_BOT_TOKEN || "";
 const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL || "http://127.0.0.1:54421";
-const SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY || "";
+const SERVICE_ROLE_KEY = env.SUPABASE_SECRET_KEY || "";
 const APP_URL = process.env.APP_URL || "http://localhost:3000";
 
 if (!BOT_TOKEN) {
