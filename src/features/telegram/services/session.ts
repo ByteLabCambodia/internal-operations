@@ -15,7 +15,7 @@ export async function mintAccessToken(opts: {
   const secret = process.env.SUPABASE_JWT_SECRET;
   if (!secret) throw new Error("SUPABASE_JWT_SECRET not configured");
 
-  const ttl = opts.ttlSeconds ?? 60 * 60; // 1h
+  const ttl = opts.ttlSeconds ?? 60 * 60 * 24; // 24h — matches initData validity window
   const now = Math.floor(Date.now() / 1000);
 
   const accessToken = await new SignJWT({

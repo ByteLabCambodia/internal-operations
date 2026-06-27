@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 
 type Screen = "loading" | "no-telegram" | "error" | "link" | "home" | "pr-form" | "stock-form" | "claim-form" | "submitted" | "history";
+type AuthFetch = (path: string, options?: RequestInit) => Promise<Response>;
 type Profile = { id: string; full_name: string | null; role: string };
 type InventoryItem = { id: string; sku: string; name: string; unit: string };
 type PoOption = { id: string; label: string; items: { id: string; name: string; remaining: number }[] };
@@ -38,12 +39,12 @@ function appUrl(path: string) {
 type PrItem = { id: number; name: string; qty: string; price: string };
 
 function PrForm({
-  token,
+  fetchWithAuth,
   rates,
   onBack,
   onDone,
 }: {
-  token: string;
+  fetchWithAuth: AuthFetch;
   rates: Record<string, number>;
   onBack: () => void;
   onDone: (msg: string) => void;
@@ -82,9 +83,9 @@ function PrForm({
       return;
     }
 
-    const res = await fetch(appUrl("/api/miniapp/pr"), {
+    const res = await fetchWithAuth("/api/miniapp/pr", {
       method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({
         items: items.map((it) => ({ name: it.name, qty: Number(it.qty), price: Number(it.price) })),
         currency,
@@ -189,12 +190,12 @@ function PrForm({
 type StockItem = { id: number; itemId: string; qty: string };
 
 function StockForm({
-  token,
+  fetchWithAuth,
   items,
   onBack,
   onDone,
 }: {
-  token: string;
+  fetchWithAuth: AuthFetch;
   items: InventoryItem[];
   onBack: () => void;
   onDone: (msg: string) => void;
@@ -223,9 +224,9 @@ function StockForm({
     setBusy(true);
     setError(null);
 
-    const res = await fetch(appUrl("/api/miniapp/stock"), {
+    const res = await fetchWithAuth("/api/miniapp/stock", {
       method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({
         items: rows.map((r) => ({ itemId: r.itemId, qty: Number(r.qty) })),
         note,
@@ -305,13 +306,13 @@ function StockForm({
 // ── Claim Form ───────────────────────────────────────────────────────────────
 
 function ClaimForm({
-  token,
+  fetchWithAuth,
   pos,
   items,
   onBack,
   onDone,
 }: {
-  token: string;
+  fetchWithAuth: AuthFetch;
   pos: PoOption[];
   items: InventoryItem[];
   onBack: () => void;
@@ -332,9 +333,9 @@ function ClaimForm({
     setBusy(true);
     setError(null);
 
-    const res = await fetch(appUrl("/api/miniapp/claim"), {
+    const res = await fetchWithAuth("/api/miniapp/claim", {
       method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ poId, poItemId, inventoryItemId: invId, qty: Number(qty) }),
     });
     const body = await res.json();
@@ -460,7 +461,7 @@ function formatDate(iso: string) {
 
 // ── PR detail + edit ─────────────────────────────────────────────────────────
 
-function PrDetailPanel({ id, token, rates, onBack }: { id: string; token: string; rates: Record<string, number>; onBack: () => void }) {
+function PrDetailPanel({ id, fetchWithAuth, rates, onBack }: { id: string; fetchWithAuth: AuthFetch; rates: Record<string, number>; onBack: () => void }) {
   const [pr, setPr] = useState<PrDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -472,7 +473,7 @@ function PrDetailPanel({ id, token, rates, onBack }: { id: string; token: string
 
   function load() {
     setLoading(true);
-    fetch(appUrl(`/api/miniapp/history/pr/${id}`), { headers: { authorization: `Bearer ${token}` } })
+    fetchWithAuth(`/api/miniapp/history/pr/${id}`)
       .then(async (r) => {
         if (!r.ok) throw new Error("Failed to load");
         const data: PrDetail = await r.json();
@@ -502,9 +503,9 @@ function PrDetailPanel({ id, token, rates, onBack }: { id: string; token: string
     const rate = rates[editCurrency] ?? pr.exchange_rate;
     setBusy(true);
     setError(null);
-    const res = await fetch(appUrl(`/api/miniapp/history/pr/${id}`), {
+    const res = await fetchWithAuth(`/api/miniapp/history/pr/${id}`, {
       method: "PATCH",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({
         items: editItems.map((it) => ({ name: it.name, qty: Number(it.qty), price: Number(it.price) })),
         currency: editCurrency,
@@ -622,7 +623,7 @@ function PrDetailPanel({ id, token, rates, onBack }: { id: string; token: string
 
 // ── Stock detail + edit ───────────────────────────────────────────────────────
 
-function StockDetailPanel({ id, token, onBack }: { id: string; token: string; onBack: () => void }) {
+function StockDetailPanel({ id, fetchWithAuth, onBack }: { id: string; fetchWithAuth: AuthFetch; onBack: () => void }) {
   const [sr, setSr] = useState<StockDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -633,7 +634,7 @@ function StockDetailPanel({ id, token, onBack }: { id: string; token: string; on
 
   function load() {
     setLoading(true);
-    fetch(appUrl(`/api/miniapp/history/stock/${id}`), { headers: { authorization: `Bearer ${token}` } })
+    fetchWithAuth(`/api/miniapp/history/stock/${id}`)
       .then(async (r) => {
         if (!r.ok) throw new Error("Failed to load");
         const data: StockDetail = await r.json();
@@ -648,9 +649,9 @@ function StockDetailPanel({ id, token, onBack }: { id: string; token: string; on
   async function saveEdit() {
     setBusy(true);
     setError(null);
-    const res = await fetch(appUrl(`/api/miniapp/history/stock/${id}`), {
+    const res = await fetchWithAuth(`/api/miniapp/history/stock/${id}`, {
       method: "PATCH",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ qty: Number(editQty), note: editNote }),
     });
     const body = await res.json();
@@ -733,7 +734,7 @@ function StockDetailPanel({ id, token, onBack }: { id: string; token: string; on
 
 // ── Claim detail + edit ───────────────────────────────────────────────────────
 
-function ClaimDetailPanel({ id, token, onBack }: { id: string; token: string; onBack: () => void }) {
+function ClaimDetailPanel({ id, fetchWithAuth, onBack }: { id: string; fetchWithAuth: AuthFetch; onBack: () => void }) {
   const [cl, setCl] = useState<ClaimDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -743,7 +744,7 @@ function ClaimDetailPanel({ id, token, onBack }: { id: string; token: string; on
 
   function load() {
     setLoading(true);
-    fetch(appUrl(`/api/miniapp/history/claim/${id}`), { headers: { authorization: `Bearer ${token}` } })
+    fetchWithAuth(`/api/miniapp/history/claim/${id}`)
       .then(async (r) => {
         if (!r.ok) throw new Error("Failed to load");
         const data: ClaimDetail = await r.json();
@@ -758,9 +759,9 @@ function ClaimDetailPanel({ id, token, onBack }: { id: string; token: string; on
   async function saveEdit() {
     setBusy(true);
     setError(null);
-    const res = await fetch(appUrl(`/api/miniapp/history/claim/${id}`), {
+    const res = await fetchWithAuth(`/api/miniapp/history/claim/${id}`, {
       method: "PATCH",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ qty_claimed: Number(editQty) }),
     });
     const body = await res.json();
@@ -852,11 +853,11 @@ type HistorySubScreen =
   | { view: "claim-detail"; id: string };
 
 function HistoryView({
-  token,
+  fetchWithAuth,
   rates,
   onBack,
 }: {
-  token: string;
+  fetchWithAuth: AuthFetch;
   rates: Record<string, number>;
   onBack: () => void;
 }) {
@@ -869,9 +870,7 @@ function HistoryView({
   const [listError, setListError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(appUrl("/api/miniapp/history"), {
-      headers: { authorization: `Bearer ${token}` },
-    })
+    fetchWithAuth("/api/miniapp/history")
       .then(async (res) => {
         if (!res.ok) throw new Error("Failed to load history");
         const data = await res.json();
@@ -881,16 +880,16 @@ function HistoryView({
       })
       .catch((e) => setListError(e.message))
       .finally(() => setLoading(false));
-  }, [token]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (sub.view === "pr-detail") {
-    return <PrDetailPanel id={sub.id} token={token} rates={rates} onBack={() => setSub({ view: "list" })} />;
+    return <PrDetailPanel id={sub.id} fetchWithAuth={fetchWithAuth} rates={rates} onBack={() => setSub({ view: "list" })} />;
   }
   if (sub.view === "stock-detail") {
-    return <StockDetailPanel id={sub.id} token={token} onBack={() => setSub({ view: "list" })} />;
+    return <StockDetailPanel id={sub.id} fetchWithAuth={fetchWithAuth} onBack={() => setSub({ view: "list" })} />;
   }
   if (sub.view === "claim-detail") {
-    return <ClaimDetailPanel id={sub.id} token={token} onBack={() => setSub({ view: "list" })} />;
+    return <ClaimDetailPanel id={sub.id} fetchWithAuth={fetchWithAuth} onBack={() => setSub({ view: "list" })} />;
   }
 
   const tabs: { key: typeof tab; label: string; count: number }[] = [
@@ -1083,16 +1082,47 @@ export default function MiniAppPage() {
   const [screen, setScreen] = useState<Screen>("loading");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const tokenRef = useRef<string | null>(null);
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [rates, setRates] = useState<Record<string, number>>({ USD: 1 });
   const [pos, setPos] = useState<PoOption[]>([]);
   const [doneMsg, setDoneMsg] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [initData, setInitData] = useState<string>("");
+  const [linkInitData, setLinkInitData] = useState<string>("");
+  const initDataRef = useRef<string>("");
+
+  function storeToken(t: string) {
+    setToken(t);
+    tokenRef.current = t;
+  }
+
+  // Wraps every miniapp API call: injects the Bearer token and silently
+  // re-runs the initData exchange on 401, then retries once.
+  const fetchWithAuth = useCallback(async (path: string, options: RequestInit = {}): Promise<Response> => {
+    const currentToken = tokenRef.current;
+    const headers = { ...(options.headers as Record<string, string>), authorization: `Bearer ${currentToken}` };
+    const res = await fetch(appUrl(path), { ...options, headers });
+    if (res.status !== 401 || !initDataRef.current) return res;
+
+    // Token expired — try refreshing via stored initData
+    try {
+      const refreshRes = await fetch(appUrl("/api/telegram/init"), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initData: initDataRef.current }),
+      });
+      if (!refreshRes.ok) return res;
+      const { accessToken } = await refreshRes.json();
+      storeToken(accessToken);
+      return fetch(appUrl(path), { ...options, headers: { ...headers, authorization: `Bearer ${accessToken}` } });
+    } catch {
+      return res;
+    }
+  }, []);
 
   async function finishAuth(accessToken: string, prof: Profile) {
     setProfile(prof);
-    setToken(accessToken);
+    storeToken(accessToken);
     const dataRes = await fetch(appUrl("/api/miniapp/data"), {
       headers: { authorization: `Bearer ${accessToken}` },
     });
@@ -1115,7 +1145,7 @@ export default function MiniAppPage() {
     }
     tg.ready();
     tg.expand();
-    setInitData(tg.initData);
+    initDataRef.current = tg.initData;
 
     fetch(appUrl("/api/telegram/init"), {
       method: "POST",
@@ -1125,6 +1155,7 @@ export default function MiniAppPage() {
       .then(async (res) => {
         const body = await res.json();
         if (res.status === 403 && body.error === "telegram account not linked to a user") {
+          setLinkInitData(initDataRef.current);
           setScreen("link");
           return;
         }
@@ -1150,7 +1181,7 @@ export default function MiniAppPage() {
 
       {screen === "link" && (
         <LinkForm
-          initData={initData}
+          initData={linkInitData}
           onSuccess={(prof, tok) => finishAuth(tok, prof)}
         />
       )}
@@ -1204,19 +1235,19 @@ export default function MiniAppPage() {
       )}
 
       {screen === "pr-form" && token && (
-        <PrForm token={token} rates={rates} onBack={() => setScreen("home")} onDone={handleDone} />
+        <PrForm fetchWithAuth={fetchWithAuth} rates={rates} onBack={() => setScreen("home")} onDone={handleDone} />
       )}
 
       {screen === "stock-form" && token && (
-        <StockForm token={token} items={items} onBack={() => setScreen("home")} onDone={handleDone} />
+        <StockForm fetchWithAuth={fetchWithAuth} items={items} onBack={() => setScreen("home")} onDone={handleDone} />
       )}
 
       {screen === "claim-form" && token && (
-        <ClaimForm token={token} pos={pos} items={items} onBack={() => setScreen("home")} onDone={handleDone} />
+        <ClaimForm fetchWithAuth={fetchWithAuth} pos={pos} items={items} onBack={() => setScreen("home")} onDone={handleDone} />
       )}
 
       {screen === "history" && token && (
-        <HistoryView token={token} rates={rates} onBack={() => setScreen("home")} />
+        <HistoryView fetchWithAuth={fetchWithAuth} rates={rates} onBack={() => setScreen("home")} />
       )}
 
       {screen === "submitted" && (
