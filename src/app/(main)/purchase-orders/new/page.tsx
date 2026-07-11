@@ -12,7 +12,7 @@ export default async function NewPurchaseOrderPage({
   const { pr: prId } = await searchParams;
   const supabase = await createClient();
 
-  const [{ data: departments }, { data: projects }, { data: rates }, { data: approvedPrs }] =
+  const [{ data: departments }, { data: projects }, { data: rates }, { data: approvedPrs }, { data: supplierRows }] =
     await Promise.all([
       supabase.from("departments").select("id, name").eq("active", true).order("name"),
       supabase.from("projects").select("id, name").eq("active", true).order("name"),
@@ -22,7 +22,10 @@ export default async function NewPurchaseOrderPage({
         .select("id, pr_number, currency, total_original, created_at")
         .eq("status", "approved")
         .order("created_at", { ascending: false }),
+      supabase.from("purchase_orders").select("supplier").not("supplier", "is", null).order("supplier"),
     ]);
+
+  const suppliers = [...new Set((supplierRows ?? []).map((r) => r.supplier as string))].filter(Boolean);
 
   const rateMap: Record<Currency, number> = { USD: 1, KHR: 0, CNY: 0 };
   for (const r of rates ?? []) {
@@ -79,6 +82,7 @@ export default async function NewPurchaseOrderPage({
         departments={departments ?? []}
         projects={projects ?? []}
         rates={rateMap}
+        suppliers={suppliers}
         approvedPrs={(approvedPrs ?? []).map((p) => ({
           id: p.id,
           pr_number: p.pr_number,

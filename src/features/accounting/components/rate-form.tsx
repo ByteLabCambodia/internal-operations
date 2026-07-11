@@ -6,8 +6,13 @@ import { toast } from "sonner";
 
 import { upsertRate } from "@/features/accounting/services/actions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DatePicker } from "@/components/reui/date-picker";
+import {
+  NumberField,
+  NumberFieldGroup,
+  NumberFieldInput,
+} from "@/components/reui/number-field";
 import {
   Select,
   SelectContent,
@@ -43,7 +48,7 @@ export function RateForm() {
       <Label htmlFor="rate-currency">Currency</Label>
       <Label htmlFor="rate-value">Rate (per USD)</Label>
       <span />
-      <Input id="rate-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      <DatePicker value={date} onValueChange={setDate} />
       <Select value={currency} onValueChange={(v) => setCurrency((v ?? "KHR") as "KHR" | "CNY")}>
         <SelectTrigger id="rate-currency" className="w-full py-1"><SelectValue /></SelectTrigger>
         <SelectContent>
@@ -51,7 +56,15 @@ export function RateForm() {
           <SelectItem value="CNY">CNY</SelectItem>
         </SelectContent>
       </Select>
-      <Input id="rate-value" type="number" min="0" step="any" placeholder="e.g. 4100" value={rate} onChange={(e) => setRate(e.target.value)} />
+      <NumberField
+        value={rate === "" ? null : Number(rate)}
+        onValueChange={(v) => setRate(v == null ? "" : String(v))}
+        min={0}
+      >
+        <NumberFieldGroup>
+          <NumberFieldInput id="rate-value" placeholder="e.g. 4100" />
+        </NumberFieldGroup>
+      </NumberField>
       <Button onClick={submit} disabled={busy || !rate || Number(rate) <= 0}>
         {busy ? "Saving…" : "Save rate"}
       </Button>

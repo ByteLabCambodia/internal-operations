@@ -27,6 +27,7 @@ export const claimSchema = z.object({
   po_item_id: z.string().uuid(),
   inventory_item_id: z.string().uuid(),
   qty_claimed: z.coerce.number().positive(),
+  receipt_object_key: z.string().optional().nullable(),
 });
 
 export const claimDecisionSchema = z.object({

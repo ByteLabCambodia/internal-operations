@@ -1,26 +1,25 @@
 import { FileText } from "lucide-react";
 
 /**
- * Receipt preview for the payments table. Renders a small image thumbnail for
- * image receipts (click to open full size) or a labelled icon link for PDFs.
- * `url` is a short-lived presigned GET URL; `objectKey` is used only to detect
- * the file type from its extension.
+ * Receipt preview for the payments table. Links through /api/r2/view which
+ * generates a fresh presigned URL on each click — no expiry issues.
  */
-export function ReceiptThumbnail({ url, objectKey }: { url: string; objectKey: string }) {
+export function ReceiptThumbnail({ objectKey }: { objectKey: string }) {
   const isImage = /\.(png|jpe?g|gif|webp|avif|heic)$/i.test(objectKey);
+  const viewUrl = `/api/r2/view?key=${encodeURIComponent(objectKey)}`;
 
   return (
     <a
-      href={url}
+      href={viewUrl}
       target="_blank"
       rel="noreferrer"
       className="inline-flex items-center gap-2 rounded-md hover:opacity-80"
       title="Open receipt"
     >
       {isImage ? (
-        // eslint-disable-next-line @next/next/no-img-element -- presigned URLs are dynamic/short-lived; next/image optimization is a poor fit
+        // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={url}
+          src={viewUrl}
           alt="Receipt"
           className="size-12 rounded border object-cover"
         />

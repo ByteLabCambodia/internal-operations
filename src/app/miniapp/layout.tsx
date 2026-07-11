@@ -11,7 +11,6 @@ export default function MiniAppLayout({ children }: { children: React.ReactNode 
   return (
     <>
       <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
-      {/* eslint-disable-next-line @next/next/no-before-interactive-script-component */}
       <script dangerouslySetInnerHTML={{ __html: `window.__APP_URL__=${JSON.stringify(appUrl)};` }} />
       <div className="min-h-screen w-full">
         {children}

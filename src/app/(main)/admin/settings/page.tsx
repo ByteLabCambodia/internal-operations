@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { requirePermission } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/reui/badge";
 import { currencySchema, PAYMENT_METHOD_LABELS } from "@/features/procurement/schemas";
 
 export default async function AdminSettingsPage() {

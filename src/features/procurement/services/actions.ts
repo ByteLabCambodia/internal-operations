@@ -178,6 +178,68 @@ export async function createPurchaseOrder(raw: unknown): Promise<Result> {
   return { ok: true, id: po.id };
 }
 
+/** Cancel a purchase request (manager/finance/admin). */
+export async function cancelPurchaseRequest(prId: string): Promise<Result> {
+  const profile = await requirePermission("pr.cancel");
+  const supabase = await createClient();
+
+  const { data: pr } = await supabase
+    .from("purchase_requests")
+    .select("status")
+    .eq("id", prId)
+    .single();
+  if (!pr) return { ok: false, error: "Purchase request not found" };
+  if (["cancelled", "rejected", "converted"].includes(pr.status ?? ""))
+    return { ok: false, error: `Cannot cancel a ${pr.status} request` };
+
+  const { error } = await supabase
+    .from("purchase_requests")
+    .update({ status: "cancelled" })
+    .eq("id", prId);
+  if (error) return { ok: false, error: error.message };
+
+  await logActivity(supabase, {
+    entityType: "purchase_request",
+    entityId: prId,
+    action: "cancelled",
+    actorId: profile.id,
+  });
+  revalidatePath("/purchase-requests");
+  revalidatePath(`/purchase-requests/${prId}`);
+  return { ok: true };
+}
+
+/** Cancel a purchase order (manager/finance/admin). Only allowed when open. */
+export async function cancelPurchaseOrder(poId: string): Promise<Result> {
+  const profile = await requirePermission("po.cancel");
+  const supabase = await createClient();
+
+  const { data: po } = await supabase
+    .from("purchase_orders")
+    .select("status")
+    .eq("id", poId)
+    .single();
+  if (!po) return { ok: false, error: "Purchase order not found" };
+  if (po.status !== "open")
+    return { ok: false, error: `Cannot cancel a ${po.status} order` };
+
+  const { error } = await supabase
+    .from("purchase_orders")
+    .update({ status: "cancelled" })
+    .eq("id", poId);
+  if (error) return { ok: false, error: error.message };
+
+  await logActivity(supabase, {
+    entityType: "purchase_order",
+    entityId: poId,
+    action: "cancelled",
+    actorId: profile.id,
+  });
+  revalidatePath("/purchase-orders");
+  revalidatePath(`/purchase-orders/${poId}`);
+  return { ok: true };
+}
+
 /** Record a payment (finance/admin). Trigger creates the balanced journal entry. */
 export async function recordPayment(raw: unknown): Promise<Result> {
   const profile = await requirePermission("payment.record");
@@ -198,6 +260,10 @@ export async function recordPayment(raw: unknown): Promise<Result> {
       method: input.method ?? null,
       bank_account: input.bank_account ?? null,
       reference: input.reference ?? null,
+      trx_id: input.trx_id ?? null,
+      sender: input.sender ?? null,
+      transfer_to: input.transfer_to ?? null,
+      remark: input.remark ?? null,
       paid_at: input.paid_at ?? new Date().toISOString(),
       receipt_object_key: input.receipt_object_key ?? null,
       recorded_by: profile.id,

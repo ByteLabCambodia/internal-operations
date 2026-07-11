@@ -1,25 +1,25 @@
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeProps } from "@/components/reui/badge";
 
-type Variant = "default" | "secondary" | "destructive" | "outline";
+type Variant = BadgeProps["variant"];
 
 const MAP: Record<string, Variant> = {
   // pr
   draft: "outline",
-  pending: "secondary",
-  approved: "default",
-  rejected: "destructive",
+  pending: "warning-light",
+  approved: "success-light",
+  rejected: "destructive-light",
   cancelled: "outline",
-  converted: "default",
+  converted: "secondary",
   // po
-  open: "secondary",
-  partial: "secondary",
-  complete: "default",
+  open: "info-light",
+  partial: "warning-light",
+  complete: "success-light",
   // payment
-  unpaid: "destructive",
-  paid: "default",
+  unpaid: "destructive-light",
+  paid: "success-light",
   // claim / stock request
-  confirmed: "default",
-  fulfilled: "default",
+  confirmed: "success-light",
+  fulfilled: "success-light",
 };
 
 export function StatusBadge({ status }: { status: string }) {

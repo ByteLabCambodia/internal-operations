@@ -11,7 +11,9 @@ export type UserRole = "employee" | "manager" | "finance" | "admin";
 export type Permission =
   | "pr.create"
   | "pr.decide" // approve / reject
+  | "pr.cancel"
   | "po.create"
+  | "po.cancel"
   | "payment.record"
   | "claim.submit"
   | "claim.confirm"
@@ -26,7 +28,9 @@ export type Permission =
 const MATRIX: Record<Permission, UserRole[]> = {
   "pr.create": ["employee", "manager", "finance", "admin"],
   "pr.decide": ["manager", "admin"],
+  "pr.cancel": ["manager", "finance", "admin"],
   "po.create": ["manager", "finance", "admin"],
+  "po.cancel": ["manager", "finance", "admin"],
   "payment.record": ["finance", "admin"],
   "claim.submit": ["employee", "manager", "finance", "admin"],
   "claim.confirm": ["manager", "admin"],

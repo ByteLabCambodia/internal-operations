@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     ]),
   );
 
-  let itemMap: Record<string, { name: string; sku: string }> = {};
+  const itemMap: Record<string, { name: string; sku: string }> = {};
   if (itemIds.length > 0) {
     const { data: invItems } = await supabase
       .from("inventory_items")

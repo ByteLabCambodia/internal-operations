@@ -9,6 +9,20 @@ import { format as formatMoney, formatUsd, toUsd, type Currency } from "@/lib/mo
 import { createPurchaseOrder } from "@/features/procurement/services/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Autocomplete,
+  AutocompleteContent,
+  AutocompleteInput,
+  AutocompleteItem,
+  AutocompleteCollection,
+  AutocompleteEmpty,
+  AutocompleteList,
+} from "@/components/reui/autocomplete";
+import {
+  NumberField,
+  NumberFieldGroup,
+  NumberFieldInput,
+} from "@/components/reui/number-field";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -31,12 +45,14 @@ export function PoForm({
   projects,
   rates,
   approvedPrs,
+  suppliers,
   prefill,
 }: {
   departments: Option[];
   projects: Option[];
   rates: Record<Currency, number>;
   approvedPrs: ApprovedPr[];
+  suppliers: string[];
   prefill: {
     pr_id: string;
     pr_number: string;
@@ -171,7 +187,17 @@ export function PoForm({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Supplier</Label>
-              <Input value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="e.g. Taobao" />
+              <Autocomplete items={suppliers} value={supplier} onValueChange={(v) => setSupplier(v)}>
+                <AutocompleteInput placeholder="e.g. Taobao" showClear showTrigger />
+                <AutocompleteContent>
+                  <AutocompleteList>
+                    <AutocompleteEmpty>No matching suppliers</AutocompleteEmpty>
+                    <AutocompleteCollection>
+                      {(item: string) => <AutocompleteItem key={item}>{item}</AutocompleteItem>}
+                    </AutocompleteCollection>
+                  </AutocompleteList>
+                </AutocompleteContent>
+              </Autocomplete>
             </div>
             <div className="space-y-2">
               <Label>Currency</Label>
@@ -230,10 +256,22 @@ export function PoForm({
             <div key={i} className="grid grid-cols-12 items-center gap-2">
               <Input className="col-span-6" placeholder="Item name" value={line.name}
                 onChange={(e) => updateLine(i, { name: e.target.value })} />
-              <Input className="col-span-2" type="number" min="0" step="any" value={line.qty_ordered}
-                onChange={(e) => updateLine(i, { qty_ordered: e.target.value })} />
-              <Input className="col-span-3" type="number" min="0" step="any" value={line.unit_price_original}
-                onChange={(e) => updateLine(i, { unit_price_original: e.target.value })} />
+              <NumberField className="col-span-2"
+                value={line.qty_ordered === "" ? null : Number(line.qty_ordered)}
+                onValueChange={(v) => updateLine(i, { qty_ordered: v == null ? "" : String(v) })}
+                min={0}>
+                <NumberFieldGroup>
+                  <NumberFieldInput />
+                </NumberFieldGroup>
+              </NumberField>
+              <NumberField className="col-span-3"
+                value={line.unit_price_original === "" ? null : Number(line.unit_price_original)}
+                onValueChange={(v) => updateLine(i, { unit_price_original: v == null ? "" : String(v) })}
+                min={0}>
+                <NumberFieldGroup>
+                  <NumberFieldInput />
+                </NumberFieldGroup>
+              </NumberField>
               <Button type="button" variant="ghost" size="icon" className="col-span-1"
                 onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))}
                 disabled={lines.length === 1}>

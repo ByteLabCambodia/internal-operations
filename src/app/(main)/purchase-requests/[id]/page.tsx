@@ -18,6 +18,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { DecideButtons } from "@/features/procurement/components/decide-buttons";
+import { CancelButton } from "@/features/procurement/components/cancel-button";
+import { ProcurementStepper } from "@/features/procurement/components/procurement-stepper";
+import { prActiveStep } from "@/features/procurement/lib/procurement-flow";
 import { ActivityTimeline } from "@/features/activity/components/activity-timeline";
 
 export default async function PurchaseRequestDetailPage({
@@ -44,9 +47,11 @@ export default async function PurchaseRequestDetailPage({
     .eq("pr_id", id);
 
   const currency = pr.currency as Currency;
+  const activeStep = prActiveStep(pr.status);
   const role = profile?.role as UserRole | undefined;
   const canDecide = role && can(role, "pr.decide") && pr.status === "pending";
   const canCreatePo = role && can(role, "po.create") && pr.status === "approved";
+  const canCancel = role && can(role, "pr.cancel") && !["cancelled", "rejected", "converted"].includes(pr.status ?? "");
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -66,6 +71,14 @@ export default async function PurchaseRequestDetailPage({
           {Number(pr.exchange_rate)} {currency}/USD
         </p>
       </div>
+
+      {activeStep !== null && (
+        <Card>
+          <CardContent className="py-2">
+            <ProcurementStepper activeStep={activeStep} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -102,14 +115,16 @@ export default async function PurchaseRequestDetailPage({
             </TableBody>
           </Table>
           <div className="mt-4 flex justify-end gap-6 text-sm">
-            <div className="text-right">
-              <div className="text-muted-foreground">Total ({currency})</div>
-              <div className="text-lg font-semibold tabular-nums">
-                {formatMoney(Number(pr.total_original), currency)}
+            {currency !== "USD" && (
+              <div className="text-right">
+                <div className="text-muted-foreground">Total ({currency})</div>
+                <div className="text-lg font-semibold tabular-nums">
+                  {formatMoney(Number(pr.total_original), currency)}
+                </div>
               </div>
-            </div>
+            )}
             <div className="text-right">
-              <div className="text-muted-foreground">USD</div>
+              <div className="text-muted-foreground">Total (USD)</div>
               <div className="text-lg font-semibold tabular-nums">
                 {formatUsd(Number(pr.total_usd))}
               </div>
@@ -135,13 +150,14 @@ export default async function PurchaseRequestDetailPage({
         </div>
       )}
 
-      {canCreatePo && (
-        <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {canCreatePo && (
           <Button asChild>
             <Link href={`/purchase-orders/new?pr=${pr.id}`}>Create Purchase Order</Link>
           </Button>
-        </div>
-      )}
+        )}
+        {canCancel && <CancelButton type="pr" id={pr.id} />}
+      </div>
     </div>
   );
 }

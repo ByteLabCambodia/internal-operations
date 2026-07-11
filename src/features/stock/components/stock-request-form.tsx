@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  NumberField,
+  NumberFieldDecrement,
+  NumberFieldGroup,
+  NumberFieldIncrement,
+  NumberFieldInput,
+} from "@/components/reui/number-field";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -66,7 +73,17 @@ export function StockRequestForm({ items }: { items: { id: string; name: string;
       </div>
       <div className="space-y-2">
         <Label>Quantity</Label>
-        <Input type="number" min="0" step="any" value={qty} onChange={(e) => setQty(e.target.value)} />
+        <NumberField
+          value={qty === "" ? null : Number(qty)}
+          onValueChange={(v) => setQty(v == null ? "" : String(v))}
+          min={0}
+        >
+          <NumberFieldGroup>
+            <NumberFieldDecrement />
+            <NumberFieldInput />
+            <NumberFieldIncrement />
+          </NumberFieldGroup>
+        </NumberField>
       </div>
       <div className="space-y-2">
         <Label>Priority</Label>

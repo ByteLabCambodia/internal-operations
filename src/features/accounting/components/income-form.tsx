@@ -10,6 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  NumberField,
+  NumberFieldGroup,
+  NumberFieldInput,
+} from "@/components/reui/number-field";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -50,7 +55,15 @@ export function IncomeForm({ incomeAccounts }: { incomeAccounts: Option[] }) {
     <div className="grid gap-3 sm:grid-cols-2">
       <div className="space-y-2">
         <Label>Amount</Label>
-        <Input type="number" min="0" step="any" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <NumberField
+          value={amount === "" ? null : Number(amount)}
+          onValueChange={(v) => setAmount(v == null ? "" : String(v))}
+          min={0}
+        >
+          <NumberFieldGroup>
+            <NumberFieldInput />
+          </NumberFieldGroup>
+        </NumberField>
       </div>
       <div className="space-y-2">
         <Label>Currency</Label>

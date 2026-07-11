@@ -4,8 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  NumberField,
+  NumberFieldDecrement,
+  NumberFieldGroup,
+  NumberFieldIncrement,
+  NumberFieldInput,
+} from "@/components/reui/number-field";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/reui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   Select,
@@ -413,7 +420,17 @@ function ClaimForm({
         </div>
         <div className="space-y-1">
           <Label>Quantity</Label>
-          <Input type="number" min="1" value={qty} onChange={(e) => setQty(e.target.value)} />
+          <NumberField
+            value={qty === "" ? null : Number(qty)}
+            onValueChange={(v) => setQty(v == null ? "" : String(v))}
+            min={1}
+          >
+            <NumberFieldGroup>
+              <NumberFieldDecrement />
+              <NumberFieldInput />
+              <NumberFieldIncrement />
+            </NumberFieldGroup>
+          </NumberField>
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <Button className="w-full" onClick={submit} disabled={busy || !poId || !poItemId || !invId || !qty || Number(qty) <= 0}>
@@ -483,7 +500,10 @@ function PrDetailPanel({ id, fetchWithAuth, rates, onBack }: { id: string; fetch
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Data fetch on id change: setState after the async load is the intended
+  // pattern here, not a cascading-render bug.
+  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
+  useEffect(() => { load(); }, [id]);
 
   function startEdit() {
     if (!pr) return;
@@ -644,7 +664,10 @@ function StockDetailPanel({ id, fetchWithAuth, onBack }: { id: string; fetchWith
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Data fetch on id change: setState after the async load is the intended
+  // pattern here, not a cascading-render bug.
+  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
+  useEffect(() => { load(); }, [id]);
 
   async function saveEdit() {
     setBusy(true);
@@ -678,7 +701,17 @@ function StockDetailPanel({ id, fetchWithAuth, onBack }: { id: string; fetchWith
         </div>
         <div className="space-y-1">
           <Label>Quantity {sr.unit ? `(${sr.unit})` : ""}</Label>
-          <Input type="number" min="1" value={editQty} onChange={(e) => setEditQty(e.target.value)} />
+          <NumberField
+            value={editQty === "" ? null : Number(editQty)}
+            onValueChange={(v) => setEditQty(v == null ? "" : String(v))}
+            min={1}
+          >
+            <NumberFieldGroup>
+              <NumberFieldDecrement />
+              <NumberFieldInput />
+              <NumberFieldIncrement />
+            </NumberFieldGroup>
+          </NumberField>
         </div>
         <div className="space-y-1">
           <Label>Note (optional)</Label>
@@ -754,7 +787,10 @@ function ClaimDetailPanel({ id, fetchWithAuth, onBack }: { id: string; fetchWith
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Data fetch on id change: setState after the async load is the intended
+  // pattern here, not a cascading-render bug.
+  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
+  useEffect(() => { load(); }, [id]);
 
   async function saveEdit() {
     setBusy(true);
@@ -788,7 +824,17 @@ function ClaimDetailPanel({ id, fetchWithAuth, onBack }: { id: string; fetchWith
         </div>
         <div className="space-y-1">
           <Label>Quantity claimed</Label>
-          <Input type="number" min="1" value={editQty} onChange={(e) => setEditQty(e.target.value)} />
+          <NumberField
+            value={editQty === "" ? null : Number(editQty)}
+            onValueChange={(v) => setEditQty(v == null ? "" : String(v))}
+            min={1}
+          >
+            <NumberFieldGroup>
+              <NumberFieldDecrement />
+              <NumberFieldInput />
+              <NumberFieldIncrement />
+            </NumberFieldGroup>
+          </NumberField>
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <Button className="w-full" onClick={saveEdit} disabled={busy || !editQty || Number(editQty) <= 0}>

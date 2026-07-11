@@ -89,7 +89,15 @@ export async function submitClaim(raw: unknown): Promise<Result> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("inventory_claims")
-    .insert({ ...parsed.data, status: "pending", claimed_by: profile.id })
+    .insert({
+      po_id: parsed.data.po_id,
+      po_item_id: parsed.data.po_item_id,
+      inventory_item_id: parsed.data.inventory_item_id,
+      qty_claimed: parsed.data.qty_claimed,
+      receipt_object_key: parsed.data.receipt_object_key ?? null,
+      status: "pending",
+      claimed_by: profile.id,
+    })
     .select("id")
     .single();
   if (error) return { ok: false, error: error.message };

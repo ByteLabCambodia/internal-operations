@@ -68,6 +68,10 @@ export const recordPaymentSchema = z.object({
   method: paymentMethodSchema.optional().nullable(),
   bank_account: z.string().optional().nullable(),
   reference: z.string().optional().nullable(),
+  trx_id: z.string().optional().nullable(),
+  sender: z.string().optional().nullable(),
+  transfer_to: z.string().optional().nullable(),
+  remark: z.string().optional().nullable(),
   paid_at: z.string().optional(),
   receipt_object_key: z.string().optional().nullable(),
 });

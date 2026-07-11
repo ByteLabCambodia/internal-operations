@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { can, type UserRole } from "@/lib/roles";
 import { format as formatMoney, formatUsd, type Currency } from "@/lib/money";
-import { presignDownload } from "@/lib/r2";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +18,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { RecordPaymentForm } from "@/features/procurement/components/record-payment-form";
+import { CancelButton } from "@/features/procurement/components/cancel-button";
+import { PoLineClaimButton } from "@/features/procurement/components/po-line-claim-button";
+import { ProcurementStepper } from "@/features/procurement/components/procurement-stepper";
+import { poActiveStep } from "@/features/procurement/lib/procurement-flow";
 import { ReceiptThumbnail } from "@/features/procurement/components/receipt-thumbnail";
 import { PAYMENT_METHOD_LABELS } from "@/features/procurement/schemas";
 import { ActivityTimeline } from "@/features/activity/components/activity-timeline";
@@ -39,31 +42,34 @@ export default async function PurchaseOrderDetailPage({
     .maybeSingle();
   if (!po) notFound();
 
-  const [{ data: items }, { data: payments }] = await Promise.all([
+  const canClaim =
+    profile &&
+    can(profile.role as UserRole, "claim.submit") &&
+    po.status !== "complete" &&
+    po.status !== "cancelled";
+
+  const [{ data: items }, { data: payments }, { data: catalogItems }] = await Promise.all([
     supabase
       .from("purchase_order_items")
-      .select("id, name, qty_ordered, qty_claimed, unit_price_original")
+      .select("id, name, qty_ordered, qty_claimed, unit_price_original, inventory_item_id")
       .eq("po_id", id),
     supabase
       .from("payments")
       .select("id, amount_original, currency, amount_usd, method, bank_account, reference, paid_at, receipt_object_key, journal_entry_id")
       .eq("po_id", id)
       .order("paid_at", { ascending: false }),
+    // Catalog list is only needed to receive PO lines that aren't linked to a
+    // catalog item; skip the query entirely when the user can't claim.
+    canClaim
+      ? supabase.from("inventory_items").select("id, name, sku").eq("active", true).order("name")
+      : Promise.resolve({ data: [] }),
   ]);
 
-  // Presign a short-lived GET URL for each stored receipt so it can be viewed
-  // without making the bucket public. Generated fresh on every page load.
-  const receiptUrls = new Map<string, string>();
-  await Promise.all(
-    (payments ?? [])
-      .filter((p) => p.receipt_object_key)
-      .map(async (p) => {
-        receiptUrls.set(p.id, await presignDownload(p.receipt_object_key as string));
-      }),
-  );
 
   const currency = po.currency as Currency;
+  const activeStep = poActiveStep(po.status, po.payment_status);
   const canPay = profile && can(profile.role as UserRole, "payment.record") && po.payment_status !== "paid";
+  const canCancel = profile && can(profile.role as UserRole, "po.cancel") && po.status === "open";
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -87,6 +93,14 @@ export default async function PurchaseOrderDetailPage({
         </p>
       </div>
 
+      {activeStep !== null && (
+        <Card>
+          <CardContent className="py-2">
+            <ProcurementStepper activeStep={activeStep} />
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader><CardTitle>Items</CardTitle></CardHeader>
         <CardContent>
@@ -97,28 +111,55 @@ export default async function PurchaseOrderDetailPage({
                 <TableHead className="text-right">Ordered</TableHead>
                 <TableHead className="text-right">Claimed</TableHead>
                 <TableHead className="text-right">Unit price</TableHead>
+                <TableHead className="text-right">Total</TableHead>
+                {canClaim && <TableHead className="text-right">Receive</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(items ?? []).map((it) => (
-                <TableRow key={it.id}>
-                  <TableCell>{it.name}</TableCell>
-                  <TableCell className="text-right tabular-nums">{Number(it.qty_ordered)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{Number(it.qty_claimed)}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatMoney(Number(it.unit_price_original), currency)}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {(items ?? []).map((it) => {
+                const remaining = Number(it.qty_ordered) - Number(it.qty_claimed);
+                const lineTotal = Number(it.qty_ordered) * Number(it.unit_price_original);
+                return (
+                  <TableRow key={it.id}>
+                    <TableCell>{it.name}</TableCell>
+                    <TableCell className="text-right tabular-nums">{Number(it.qty_ordered)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{Number(it.qty_claimed)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatMoney(Number(it.unit_price_original), currency)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-medium">
+                      {formatMoney(lineTotal, currency)}
+                    </TableCell>
+                    {canClaim && (
+                      <TableCell className="text-right">
+                        {remaining > 0 ? (
+                          <PoLineClaimButton
+                            poId={po.id}
+                            poItemId={it.id}
+                            itemName={it.name}
+                            remaining={remaining}
+                            linkedInventoryItemId={it.inventory_item_id}
+                            catalogItems={catalogItems ?? []}
+                          />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Fully claimed</span>
+                        )}
+                      </TableCell>
+                    )}
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
           <div className="mt-4 flex justify-end gap-6 text-sm">
+            {currency !== "USD" && (
+              <div className="text-right">
+                <div className="text-muted-foreground">Total ({currency})</div>
+                <div className="text-lg font-semibold tabular-nums">{formatMoney(Number(po.total_original), currency)}</div>
+              </div>
+            )}
             <div className="text-right">
-              <div className="text-muted-foreground">Total ({currency})</div>
-              <div className="text-lg font-semibold tabular-nums">{formatMoney(Number(po.total_original), currency)}</div>
-            </div>
-            <div className="text-right">
-              <div className="text-muted-foreground">USD</div>
+              <div className="text-muted-foreground">Total (USD)</div>
               <div className="text-lg font-semibold tabular-nums">{formatUsd(Number(po.total_usd))}</div>
             </div>
           </div>
@@ -163,11 +204,8 @@ export default async function PurchaseOrderDetailPage({
                       )}
                     </TableCell>
                     <TableCell>
-                      {receiptUrls.has(p.id) ? (
-                        <ReceiptThumbnail
-                          url={receiptUrls.get(p.id) as string}
-                          objectKey={p.receipt_object_key as string}
-                        />
+                      {p.receipt_object_key ? (
+                        <ReceiptThumbnail objectKey={p.receipt_object_key} />
                       ) : (
                         "—"
                       )}
@@ -191,6 +229,12 @@ export default async function PurchaseOrderDetailPage({
       </Card>
 
       <ActivityTimeline entityType="purchase_order" entityId={po.id} />
+
+      {canCancel && (
+        <div className="flex justify-end">
+          <CancelButton type="po" id={po.id} />
+        </div>
+      )}
     </div>
   );
 }

@@ -4,8 +4,6 @@ import { Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -15,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import * as reports from "@/features/accounting/services/reports";
+import { ReportsDateFilter } from "./date-filter";
 
 const REPORTS = [
   { key: "pnl", label: "P&L", fn: reports.profitAndLoss },
@@ -75,21 +74,12 @@ export default async function ReportsPage({
         })}
       </div>
 
-      <form className="flex flex-wrap items-end gap-3" method="get">
-        <Input type="hidden" name="report" value={active.key} />
-        <div className="space-y-1">
-          <Label htmlFor="from">From</Label>
-          <Input id="from" name="from" type="date" defaultValue={from} />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="to">To</Label>
-          <Input id="to" name="to" type="date" defaultValue={to} />
-        </div>
-        <Button type="submit" variant="secondary">Apply</Button>
+      <div className="flex flex-wrap items-end gap-3">
+        <ReportsDateFilter reportKey={active.key} defaultFrom={from} defaultTo={to} />
         <Button asChild variant="outline">
           <a href={`/api/reports?${qs.toString()}`}><Download className="size-4" /> Export CSV</a>
         </Button>
-      </form>
+      </div>
 
       <div className="rounded-md border">
         <Table>

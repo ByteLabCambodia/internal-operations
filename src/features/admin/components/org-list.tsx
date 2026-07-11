@@ -12,7 +12,7 @@ import {
 } from "@/features/admin/services/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/reui/badge";
 
 type OrgItem = { id: string; name: string; active: boolean };
 type Kind = "department" | "project";

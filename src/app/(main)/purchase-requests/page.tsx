@@ -70,9 +70,7 @@ export default async function PurchaseRequestsPage({
               <TableHead>PR #</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Currency</TableHead>
               <TableHead className="text-right">Total</TableHead>
-              <TableHead className="text-right">USD</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
@@ -89,12 +87,11 @@ export default async function PurchaseRequestsPage({
                 <TableCell>
                   <StatusBadge status={pr.status} />
                 </TableCell>
-                <TableCell>{pr.currency}</TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {formatMoney(Number(pr.total_original), pr.currency as Currency)}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {formatUsd(Number(pr.total_usd))}
+                  <div>{formatMoney(Number(pr.total_original), pr.currency as Currency)}</div>
+                  {pr.currency !== "USD" && (
+                    <div className="text-xs text-muted-foreground">{formatUsd(Number(pr.total_usd))}</div>
+                  )}
                 </TableCell>
                 <TableCell className="text-right">
                   <Button asChild variant="ghost" size="sm">
@@ -105,7 +102,7 @@ export default async function PurchaseRequestsPage({
             ))}
             {(prs ?? []).length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
                   No purchase requests yet.
                 </TableCell>
               </TableRow>

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/reui/badge";
 
 type Props = {
   fullName: string | null;
@@ -168,7 +168,7 @@ function TelegramSection({ telegramLinked, botUsername }: Pick<Props, "telegramL
 
       {telegramLinked ? (
         <div className="flex items-center gap-3">
-          <Badge variant="secondary" className="gap-1.5">
+          <Badge variant="success-light" className="gap-1.5">
             <Send className="size-3" />
             Linked
           </Badge>

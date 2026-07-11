@@ -53,7 +53,6 @@ export default async function PurchaseOrdersPage() {
               <TableHead>Status</TableHead>
               <TableHead>Payment</TableHead>
               <TableHead className="text-right">Total</TableHead>
-              <TableHead className="text-right">USD</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
@@ -67,9 +66,11 @@ export default async function PurchaseOrdersPage() {
                 <TableCell><StatusBadge status={po.status} /></TableCell>
                 <TableCell><StatusBadge status={po.payment_status} /></TableCell>
                 <TableCell className="text-right tabular-nums">
-                  {formatMoney(Number(po.total_original), po.currency as Currency)}
+                  <div>{formatMoney(Number(po.total_original), po.currency as Currency)}</div>
+                  {po.currency !== "USD" && (
+                    <div className="text-xs text-muted-foreground">{formatUsd(Number(po.total_usd))}</div>
+                  )}
                 </TableCell>
-                <TableCell className="text-right tabular-nums">{formatUsd(Number(po.total_usd))}</TableCell>
                 <TableCell className="text-right">
                   <Button asChild variant="ghost" size="sm">
                     <Link href={`/purchase-orders/${po.id}`}>View</Link>
@@ -79,7 +80,7 @@ export default async function PurchaseOrdersPage() {
             ))}
             {(pos ?? []).length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
                   No purchase orders yet.
                 </TableCell>
               </TableRow>

@@ -10,7 +10,7 @@ import type { UserRole } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/components/reui/badge";
 import {
   Select,
   SelectContent,
@@ -82,7 +82,9 @@ export function UsersManager({ users, currentUserId }: { users: AdminUser[]; cur
               <TableCell className="text-muted-foreground">{u.email ?? "—"}</TableCell>
               <TableCell><Badge variant="secondary" className="capitalize">{u.role}</Badge></TableCell>
               <TableCell>
-                <Badge variant={u.active ? "default" : "outline"}>{u.active ? "Active" : "Inactive"}</Badge>
+                <Badge variant={u.active ? "success-light" : "outline"}>
+                  {u.active ? "Active" : "Inactive"}
+                </Badge>
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-1">
@@ -145,7 +147,7 @@ function UserForm({ user, onDone }: { user: AdminUser; onDone: () => void }) {
     <DialogContent className="sm:max-w-md">
       <DialogHeader>
         <DialogTitle>Edit user</DialogTitle>
-        <DialogDescription>Update this user's details.</DialogDescription>
+        <DialogDescription>Update this user&apos;s details.</DialogDescription>
       </DialogHeader>
 
       <div className="space-y-4">

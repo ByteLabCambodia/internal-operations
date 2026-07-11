@@ -7,6 +7,13 @@ import { toast } from "sonner";
 import { createInventoryItem } from "@/features/inventory/services/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  NumberField,
+  NumberFieldDecrement,
+  NumberFieldGroup,
+  NumberFieldIncrement,
+  NumberFieldInput,
+} from "@/components/reui/number-field";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -89,13 +96,31 @@ export function ItemForm({ categories = [] }: { categories?: string[] }) {
         </div>
         <div className="space-y-2">
           <Label>Reorder point</Label>
-          <Input type="number" min="0" step="any" value={form.reorder_point}
-            onChange={(e) => set("reorder_point", e.target.value)} />
+          <NumberField
+            value={form.reorder_point === "" ? null : Number(form.reorder_point)}
+            onValueChange={(v) => set("reorder_point", v == null ? "" : String(v))}
+            min={0}
+          >
+            <NumberFieldGroup>
+              <NumberFieldDecrement />
+              <NumberFieldInput />
+              <NumberFieldIncrement />
+            </NumberFieldGroup>
+          </NumberField>
         </div>
         <div className="space-y-2">
           <Label>Reorder qty</Label>
-          <Input type="number" min="0" step="any" value={form.reorder_qty}
-            onChange={(e) => set("reorder_qty", e.target.value)} />
+          <NumberField
+            value={form.reorder_qty === "" ? null : Number(form.reorder_qty)}
+            onValueChange={(v) => set("reorder_qty", v == null ? "" : String(v))}
+            min={0}
+          >
+            <NumberFieldGroup>
+              <NumberFieldDecrement />
+              <NumberFieldInput />
+              <NumberFieldIncrement />
+            </NumberFieldGroup>
+          </NumberField>
         </div>
         <div className="sm:col-span-2">
           <Button onClick={submit} disabled={busy || !form.sku || !form.name}>

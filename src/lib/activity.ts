@@ -14,6 +14,7 @@ export type ActivityAction =
   | "approved"
   | "rejected"
   | "converted"
+  | "cancelled"
   | "payment_recorded"
   | "fulfilled";
 

@@ -27,13 +27,14 @@ export default async function ClaimsPage() {
       .limit(50),
     supabase
       .from("purchase_orders")
-      .select("id, supplier, status, purchase_order_items(id, name, qty_ordered, qty_claimed)")
+      .select("id, po_number, supplier, status, purchase_order_items(id, name, qty_ordered, qty_claimed)")
       .in("status", ["open", "partial"]),
     supabase.from("inventory_items").select("id, name, sku").eq("active", true).order("name"),
   ]);
 
   const pos = (openPos ?? []).map((po) => ({
     id: po.id,
+    po_number: po.po_number,
     supplier: po.supplier,
     items: ((po.purchase_order_items ?? []) as Array<{ id: string; name: string; qty_ordered: number; qty_claimed: number }>)
       .map((it) => ({
